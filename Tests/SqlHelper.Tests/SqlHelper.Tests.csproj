@@ -8,7 +8,7 @@
     <ProjectReference Include="..\..\CK.Testing.SqlServer\CK.Testing.SqlServer.csproj" />
     <ProjectReference Include="..\CK.Testing.Stupid\CK.Testing.Stupid.csproj" />
 
-      <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
-      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+      <PackageReference Include="NUnit3TestAdapter" Version="5.1.0" />
+      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
   </ItemGroup>
 </Project>
