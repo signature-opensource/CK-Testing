@@ -86,9 +86,12 @@ public sealed class BasicTestHelper : StaticBasicTestHelper, IBasicTestHelper
                 _onCleanupFolder?.Invoke( this, new CleanupFolderEventArgs( folder, ensureFolderAvailable ) );
                 return folder;
             }
-            catch( Exception )
+            catch( Exception ex )
             {
-                if( ++tryCount > maxRetryCount ) throw;
+                if( ++tryCount > maxRetryCount )
+                {
+                    throw new CKException( $"Unable to cleanup folder '{folder}'.", ex );
+                }
                 Thread.Sleep( 100 );
             }
         }
@@ -112,11 +115,11 @@ public sealed class BasicTestHelper : StaticBasicTestHelper, IBasicTestHelper
     }
 
     T IBasicTestHelper.JsonIdempotenceCheck<T>( T o,
-                                        Action<Utf8JsonWriter, T> write,
-                                        Utf8JsonReaderDelegate<T> read,
-                                        IUtf8JsonReaderContext? readerContext,
-                                        Action<string>? jsonText1,
-                                        Action<string>? jsonText2 )
+                                                Action<Utf8JsonWriter, T> write,
+                                                Utf8JsonReaderDelegate<T> read,
+                                                IUtf8JsonReaderContext? readerContext,
+                                                Action<string>? jsonText1,
+                                                Action<string>? jsonText2 )
     {
         readerContext ??= IUtf8JsonReaderContext.Empty;
         // This is safe: a Utf8JsonReaderDelegate<T> is a Utf8JsonReaderDelegate<T,IUtf8JsonReaderContext>.
