@@ -9,6 +9,7 @@ using System.Text;
 using static CK.Testing.MonitorTestHelper;
 using System.Threading.Tasks;
 using Shouldly;
+using System.Net.Mime;
 
 namespace GlobalLogs.Tests;
 
@@ -25,10 +26,17 @@ public class GlobalLoggingTests
         Throw.DebugAssert( GrandOutput.Default != null );
         await GrandOutput.Default.DisposeAsync();
 
-        Directory.EnumerateFiles( TestHelper.LogFolder, "*.log", SearchOption.AllDirectories )
-                    .Select( f => File.ReadAllText( f ) )
-                    .Count( text => text.Contains( secret ) )
-                    .ShouldBe( 1 );
+        var logFiles = Directory.EnumerateFiles( TestHelper.LogFolder, "*.log", SearchOption.AllDirectories )
+                                .Select( f => (FileName: Path.GetFileName( f ), Content: File.ReadAllText( f )) )
+                                .Where( f => f.Content.Contains( secret ) )
+                                .ToArray();
+        // If the user can create SymLinks, the LastRun.log is here.
+        logFiles.Length.ShouldMatch( c => c == 1 || c == 2 );
+        if( logFiles.Length == 2 )
+        {
+            logFiles.Any( f => f.FileName == "LastRun.log" ).ShouldBeTrue();
+        }
+
         // ckmon files are now gzipped by default.
         int count = 0;
         foreach( var fName in Directory.EnumerateFiles( TestHelper.LogFolder, "*.ckmon", SearchOption.AllDirectories ) )
