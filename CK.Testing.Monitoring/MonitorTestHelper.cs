@@ -73,7 +73,12 @@ public sealed class MonitorTestHelper : IMonitorTestHelperCore
                 var binConf = new BinaryFileConfiguration
                 {
                     UseGzipCompression = true,
-                    Path = FileUtil.CreateUniqueTimedFolder( LogFile.RootLogPath + "CKMon/", null, DateTime.UtcNow )
+                    Path = "CKMon",
+                    TimedFolderMode =
+                    {
+                        MaxCurrentLogFolderCount = _maxCurrentLogFolderCount,
+                        MaxArchivedLogFolderCount = _maxArchivedLogFolderCount,
+                    }
                 };
                 conf.AddHandler( binConf );
             }
@@ -81,7 +86,12 @@ public sealed class MonitorTestHelper : IMonitorTestHelperCore
             {
                 var txtConf = new TextFileConfiguration
                 {
-                    Path = FileUtil.CreateUniqueTimedFolder( LogFile.RootLogPath + "Text/", null, DateTime.UtcNow )
+                    Path = "Text",
+                    TimedFolderMode =
+                    {
+                        MaxCurrentLogFolderCount = _maxCurrentLogFolderCount,
+                        MaxArchivedLogFolderCount = _maxArchivedLogFolderCount,
+                    }
                 };
                 conf.AddHandler( txtConf );
             }
@@ -102,83 +112,6 @@ public sealed class MonitorTestHelper : IMonitorTestHelperCore
                                                "Writes the text logs to the console.",
                                                () => LogToConsole.ToString() ).Value;
         basic.OnCleanupFolder += OnCleanupFolder;
-        basic.OnlyOnce( () =>
-        {
-            var basePath = LogFile.RootLogPath + "Text" + FileUtil.DirectorySeparatorString;
-            if( Directory.Exists( basePath ) )
-            {
-                CleanupTimedFolders( _monitor, _basic, basePath, _maxCurrentLogFolderCount, _maxArchivedLogFolderCount );
-            }
-            basePath = LogFile.RootLogPath + "CKMon" + FileUtil.DirectorySeparatorString;
-            if( Directory.Exists( basePath ) )
-            {
-                CleanupTimedFolders( _monitor, _basic, basePath, _maxCurrentLogFolderCount, _maxArchivedLogFolderCount );
-            }
-        } );
-    }
-
-    static void CleanupTimedFolders( IActivityMonitor m, IBasicTestHelper basic, string basePath, int maxCurrentLogFolderCount, int maxArchivedLogFolderCount )
-    {
-        Debug.Assert( basePath.EndsWith( FileUtil.DirectorySeparatorString ) );
-        // Note: The comparer is a reverse comparer. The most RECENT timed folder is the FIRST.
-        GetTimedFolders( basePath, out SortedDictionary<DateTime, string> timedFolders, out string? archivePath, false );
-        if( timedFolders.Count > maxCurrentLogFolderCount )
-        {
-            int retryCount = 5;
-            retry:
-            try
-            {
-                if( archivePath == null )
-                {
-                    m.Trace( "Creating Archive folder." );
-                    Directory.CreateDirectory( archivePath = basePath + "Archive" );
-                }
-                foreach( var old in timedFolders.Values.Skip( maxCurrentLogFolderCount ) )
-                {
-                    var fName = Path.GetFileName( old );
-                    m.Trace( $"Moving '{fName}' folder into Archive folder." );
-                    var target = Path.Combine( archivePath, fName );
-                    if( Directory.Exists( target ) ) target += '-' + Guid.NewGuid().ToString();
-                    Directory.Move( old, target );
-                }
-                GetTimedFolders( archivePath, out timedFolders, out _, true );
-                foreach( var tooOld in timedFolders.Values.Skip( maxArchivedLogFolderCount ) )
-                {
-                    basic.CleanupFolder( tooOld, false );
-                }
-            }
-            catch( Exception ex )
-            {
-                if( --retryCount < 0 )
-                {
-                    m.Error( $"Aborting Log's cleanup of timed folders in '{basePath}' after 5 retries.", ex );
-                    return;
-                }
-                m.Warn( $"Log's cleanup of timed folders in '{basePath}' failed. Retrying in {retryCount * 100} ms.", ex );
-                Thread.Sleep( retryCount * 100 );
-                goto retry;
-            }
-        }
-    }
-
-    static void GetTimedFolders( string folder, out SortedDictionary<DateTime, string> timedFolders, out string? archivePath, bool allowNameSuffix )
-    {
-        timedFolders = new SortedDictionary<DateTime, string>( Comparer<DateTime>.Create( ( x, y ) => y.CompareTo( x ) ) );
-        archivePath = null;
-        foreach( var d in Directory.EnumerateDirectories( folder ) )
-        {
-            var name = d.Substring( folder.Length );
-            if( name == "Archive" ) archivePath = d + FileUtil.DirectorySeparatorString;
-            else
-            {
-                var n = name.AsSpan();
-                if( FileUtil.TryMatchFileNameUniqueTimeUtcFormat( ref n, out DateTime date ) && (allowNameSuffix || n.IsEmpty) )
-                {
-                    // Take no risk: ignore (highly unlikely to happen) duplicates. 
-                    timedFolders[date] = d;
-                }
-            }
-        }
     }
 
     void OnCleanupFolder( object? sender, CleanupFolderEventArgs e )
