@@ -38,13 +38,14 @@ namespace CK.Testing
             _monitor = monitor;
 
             var c = config.Declare( "SqlServer/DatabaseName", $"The default database name. When not configured this is built based on the project name '{_monitor.TestProjectName}'.", null );
-            if( c.ConfiguredValue == null )
+            var dbName = c.ConfiguredValue;
+            if( dbName == null )
             {
                 var n = "CKTEST_" + _monitor.TestProjectName.Replace( '.', '_' ).Replace( '-', '_' );
-                var dbName = n.Replace( "_Tests", String.Empty );
+                dbName = n.Replace( "_Tests", String.Empty );
                 if( dbName == n ) dbName = n.Replace( "Tests", String.Empty );
-                c.SetDefaultValue( dbName );
             }
+            c.SetDefaultValue( dbName );
             Debug.Assert( c.CurrentValue != null, "We set a non null default." );
             _confDBName = c.CurrentValue;
 
