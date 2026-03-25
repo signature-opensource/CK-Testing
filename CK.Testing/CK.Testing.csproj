@@ -5,7 +5,7 @@
     <LangVersion>11</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CK.Core" Version="24.0.1" />
+    <PackageReference Include="CK.Core" Version="24.0.2--0001-develop" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.9" />
     <PackageReference Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
