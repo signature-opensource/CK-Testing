@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path="appveyor.yml" />
+    <File Path="Directory.Build.props" />
+    <File Path="NuGet.config" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/CK.Testing.Stupid/CK.Testing.Stupid.csproj" />
+    <Project Path="Tests/CK.Testing.Tests/CK.Testing.Tests.csproj" />
+    <Project Path="Tests/LogToTextAndBinFile.Tests/LogToTextAndBinFile.Tests.csproj" />
+    <Project Path="Tests/SqlHelper.Tests/SqlHelper.Tests.csproj" />
+  </Folder>
+  <Project Path="CK.Testing.Monitoring/CK.Testing.Monitoring.csproj" />
+  <Project Path="CK.Testing.NUnit/CK.Testing.NUnit.csproj" />
+  <Project Path="CK.Testing.SqlServer/CK.Testing.SqlServer.csproj" />
+  <Project Path="CK.Testing/CK.Testing.csproj" />
+</Solution>
