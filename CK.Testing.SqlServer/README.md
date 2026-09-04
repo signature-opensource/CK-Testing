@@ -3,9 +3,49 @@
 Test helper mixin for tests that need a real SQL Server database: create it, drop it, back it up,
 restore it.
 
+## Getting the helper.
+
+One `using static`, and there is no fixture base class, no helper field, no setup method:
+
+```csharp
+using static CK.Testing.SqlServerTestHelper;
+
+[TestFixture]
+public class DBLayerTests
+{
+    [Test]
+    public void Execute_create_script_on_Database_and_Drop()
+    {
+        TestHelper.EnsureDatabase( reset: true );
+        TestHelper.ExecuteScripts( File.ReadAllText( TestHelper.TestProjectFolder.AppendPart( "Model.Sql" ) ) );
+        TestHelper.DropDatabase();
+    }
+}
+```
+
+`TestHelper` here carries this package's members *and* those of the helpers it is mixed with -
+`TestProjectFolder` above comes from `IBasicTestHelper`, `Monitor` from `CK.Testing.Monitoring`.
+
+Two behaviours the same fixture pins down. `DropDatabase` is idempotent - `dropping_database_multiple_times`
+calls it twice after a single `EnsureDatabase` and expects no throw - and the default connection targets
+master:
+
+```csharp
+var c = TestHelper.MasterConnectionString;
+c.ShouldContain( "master" );
+c.ShouldContain( "Integrated Security" );
+var c2 = TestHelper.GetConnectionString( "Toto" );
+c2.ShouldContain( "Toto" );
+```
+
+From [`DBLayerTests`](../Tests/SqlHelper.Tests/DBLayerTests.cs). That project is also the worked example
+of the section below: being named `SqlHelper.Tests`, it operates on `CKTEST_SqlHelper` without
+configuring anything.
+
 ## Nothing protects any database name.
 
-[`ISqlServerTestHelperCore`](ISqlServerTestHelperCore.cs) opens with:
+[`ISqlServerTestHelperCore`](ISqlServerTestHelperCore.cs) opens with *"Support sql database related
+helpers."*, then:
 
 ```
 /// Operations exposed here are dangerous. The only check is that the database name can not be
@@ -13,10 +53,21 @@ restore it.
 ```
 
 **That check does not exist.** `DoDrop` in [`SqlServerTestHelper`](SqlServerTestHelper.cs) builds
-`alter database [{dbName}] set single_user with rollback immediate; drop database [{dbName}]` for
-whatever name it is given, and neither it nor `DoEnsureDatabase` compares the name against anything.
-The only occurrences of `master` in the code are a connection string and the `use [master]` of
-[`BackupManager`](BackupManager.cs).
+
+```csharp
+var exec = $"if db_id('{dbName}') is not null begin ";
+if( closeExistingConnections )
+{
+    exec += $"alter database [{dbName}] set single_user with rollback immediate;";
+}
+exec += $"drop database [{dbName}]; select 1; end else begin select 0; end";
+```
+
+for whatever name it is given, and neither it nor `DoEnsureDatabase` compares the name against
+anything. The `if db_id(...) is not null` guard is what makes a second drop a no-op rather than an
+error, and the `alter database` clause is conditional on `closeExistingConnections`. `master` appears
+nowhere as a guard - only in a connection string, in a `Declare` description, in the `use [master]` of
+[`BackupManager`](BackupManager.cs), and in four doc comments.
 
 So the first half of that comment is the operative part: these operations are dangerous, and the
 safeguard is the naming convention below, not a guard.
@@ -86,7 +137,7 @@ Note the type is `SqlServerDatabaseEventArgs`, although it is declared in a file
 
 ## Stale XML comments in this package.
 
-Three doc comments contradict the code. They are listed here because they are what a reader meets
+Five doc comments contradict the code. They are listed here because they are what a reader meets
 first, and each one was believed once already:
 
 | Comment | Reality |

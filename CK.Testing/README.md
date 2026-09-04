@@ -49,6 +49,63 @@ the mapped class - and no production type in this repository uses it today; the 
 tests. [`ITestHelperResolvedCallback`](ITestHelperResolvedCallback.cs) lets a helper run code once
 resolution is complete.
 
+## What you write for a mixin.
+
+Three declarations, and the resolver does the rest. This is the `A` triplet of
+[`ResolverTests`](../Tests/CK.Testing.Tests/ResolverTests.cs), condensed - everything it names comes
+from this package:
+
+```csharp
+// 1. The core interface: what this helper adds to the TestHelper.
+public interface IACore : ITestHelperResolvedCallback
+{
+    IBasicTestHelper AToBasicRef { get; }
+    int CallACount { get; }
+    void DoA();
+    event EventHandler ADone;
+    // ... two more members
+}
+
+// 2. The facade: declares nothing, combines everything.
+public interface IA : IMixinTestHelper, IBasicTestHelper, IACore
+{
+}
+
+// 3. The implementation, of the core interface only.
+public class A : IACore
+{
+    readonly IBasicTestHelper _basic;
+    int _callCount;
+
+    // Other test helpers are resolved and injected.
+    internal A( IBasicTestHelper basic )
+    {
+        _basic = basic;
+    }
+
+    // Explicit implementations, so the facade is what the API exposes.
+    int IACore.CallACount => _callCount;
+    IBasicTestHelper IACore.AToBasicRef => _basic;
+    // ... DoA, ADone, likewise
+}
+```
+
+Each of the two resolution rules above handles exactly one of these interfaces:
+
+- `IACore` resolves by **rule 1**. Strip the `I` and the `Core`, look for `A` in the same namespace and
+  assembly, check it is assignable - it is.
+- `IA` resolves by **rule 2**. No class is assignable to it, because `A` implements only the core
+  interface and not `IBasicTestHelper`. So it is emitted, and the emitted type forwards to one
+  implementation per interface it combines.
+
+That is why the split into three types is not ceremony: interface 1 is what you write, interface 2 is
+what you consume, and only class 3 has a body. It is also why the `Core` suffix is load-bearing rather
+than stylistic - it drives the name lookup here, and it is read again by
+[`MixinType`](Resolver/MixinType.cs) when it decides which interfaces the emitted type must forward to.
+
+The constructor takes an `IBasicTestHelper`: a helper declares what it builds on as constructor
+parameters, and the resolver satisfies them.
+
 ## Where a test helper knows it is.
 
 [`IBasicTestHelper`](Basic/IBasicTestHelper.cs) exposes the paths a test needs: `SolutionFolder`,
@@ -58,8 +115,9 @@ resolution is complete.
 `ClosestSUTProjectFolder` is the one worth knowing. It is **configurable** through the
 `TestHelper/ClosestSUTProjectFolder` key, and when it is not configured
 [`BasicTestHelper`](Basic/BasicTestHelper.cs) infers it - but only for a folder whose name ends with
-`.Tests`, giving priority to a sibling `<Name>.SUT` folder, and falling back to `TestProjectFolder`
-when it finds nothing. So a fixture can reach the real sources without a relative path hard-coded in
+`.Tests`, giving priority to a `<Name>.SUT` folder - *"The .SUT always has the priority, wherever it
+is"*, searched upward as far as the solution folder, siblings merely tried first - and falling back to
+`TestProjectFolder` when it finds nothing. So a fixture can reach the real sources without a relative path hard-coded in
 the test, and a project that does not follow the `.Tests` convention configures the key instead.
 
 ## Configuration is layered, from the solution down.
