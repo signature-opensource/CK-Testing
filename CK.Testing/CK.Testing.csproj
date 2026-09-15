@@ -6,7 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CK.Core" Version="25.0.3" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
     <PackageReference Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
 </Project>
