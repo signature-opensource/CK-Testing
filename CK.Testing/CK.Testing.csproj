@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Description>Contains Test Helpers mixin infrastructure. Shouldly is used for assertions.</Description>
     <LangVersion>11</LangVersion>
   </PropertyGroup>
