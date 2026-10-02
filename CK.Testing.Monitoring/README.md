@@ -29,3 +29,10 @@ You do not change code. The type names and the namespaces stay the same:
 
 A reference to the code by its assembly name must change. For example, the string
 `"CK.Testing.MonitorTestHelper, CK.Testing.Monitoring"` becomes `"CK.Testing.MonitorTestHelper, CK.Testing"`.
+
+## A project that also has an old version
+
+An old version of `CK.Testing.Monitoring` contains the same types as `CK.Testing`, and causes
+`error CS0433` (the type exists in both assemblies). To give a clear message instead, `CK.Testing` checks
+that no version of `CK.Testing.Monitoring` is in the restore graph. This check fails the build with the
+error `CKTESTING001`. See [CK.Testing](../CK.Testing/README.md#the-obsolete-cktestingmonitoring-package).

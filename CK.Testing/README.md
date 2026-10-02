@@ -202,3 +202,30 @@ Both handlers use a timed-folder mode with a maximum count of current folders (5
 
 `MonitorTestHelper` activates `GrandOutput.Default`. If a test project also configures the
 `GrandOutput`, the last call to `EnsureActiveDefault` wins.
+
+### The obsolete CK.Testing.Monitoring package.
+
+The `CK.Testing.Monitoring` package is obsolete. Its last version is a "tombstone": it contains no
+assembly, and it fails the build with the error `CKTESTING002`. See its
+[README](../CK.Testing.Monitoring/README.md) for the migration.
+
+An old version of `CK.Testing.Monitoring` contains the same types as this package. If a project gets
+both, the compiler fails with `error CS0433` (the type exists in both assemblies), and only where the
+code uses the type. To give a clear message instead, this package ships
+[`buildTransitive/CK.Testing.targets`](buildTransitive/CK.Testing.targets). This check fails the build
+with the error `CKTESTING001` when any version of `CK.Testing.Monitoring` is in the restore graph,
+directly or transitively.
+
+To fix the error, remove the `CK.Testing.Monitoring` package reference, or update the package that
+brings it. If you cannot do this (for example, a package that nobody republishes brings the old
+version), set this property in the project to skip the check:
+
+```xml
+<PropertyGroup>
+  <CKTestingAllowObsoleteMonitoringPackage>true</CKTestingAllowObsoleteMonitoringPackage>
+</PropertyGroup>
+```
+
+`ExcludeAssets="all"` on the reference does not remove the package from the restore graph, so it does not
+skip the check. After you skip the check, you must also solve the duplicate types yourself, for example
+with `ExcludeAssets="compile"` on a direct reference to the old package, or with an `extern alias`.
