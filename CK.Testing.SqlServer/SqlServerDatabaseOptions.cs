@@ -39,7 +39,7 @@ namespace CK.Testing
         /// <summary>
         /// Gets or sets the database collation.
         /// Defaults to <c>"Latin1_General_100_BIN2"</c>.
-        /// Use the <c>"Random"</c> while creating a database to use another random collation.
+        /// The value is sent as-is in the "create database ... collate" statement: it must be a valid SQL Server collation name.
         /// </summary>
         public string Collation { get; set; }
 
