@@ -230,8 +230,10 @@ The type of the argument is `SqlServerDatabaseEventArgs`. Its file has another n
 `RestoreBackup( name )` needs only the server. It runs on `master`. When the database exists, it closes its
 connections and replaces its content. When it does not exist, the restore creates it. It does not create or
 change the default database, and it does not fire `OnDatabaseCreatedOrDropped`.
-[`QuotedNameTests`](../Tests/SqlHelper.Tests/QuotedNameTests.cs) runs the full cycle (create, back up,
-restore, drop) on a name with special characters.
+[`QuotedNameTests`](../Tests/SqlHelper.Tests/QuotedNameTests.cs) creates, uses and drops a database with special
+characters in its name. Its backup and restore test is explicit: the SQL Server service account must have write
+access to the `DBBackup` folder, and a checkout under a user profile (for example in `%TEMP%`) usually does not
+give it.
 
 ## Requires.
 

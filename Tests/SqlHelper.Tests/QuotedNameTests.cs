@@ -19,15 +19,36 @@ public class QuotedNameTests
     }
 
     [Test]
-    public void a_database_name_with_special_characters_can_be_created_backed_up_restored_and_dropped()
+    public void a_database_name_with_special_characters_can_be_created_used_and_dropped()
     {
         // '-', ' ', ']' and ''' all require quoting.
         var name = TestHelper.GetScopedDatabaseName( "CKTEST_SqlHelper Quoted-Name]'" );
-        var defaultName = TestHelper.DefaultDatabaseOptions.DatabaseName;
         try
         {
             TestHelper.EnsureDatabase( new SqlServerDatabaseOptions( name ), reset: true ).ShouldBeTrue();
             TestHelper.EnsureDatabase( new SqlServerDatabaseOptions( name ) ).ShouldBeFalse( "The database exists with the same options." );
+            TestHelper.ExecuteScripts( "create table dbo.T( Id int not null ); insert into dbo.T( Id ) values( 3712 );", name ).ShouldBeTrue();
+            CountRows( name ).ShouldBe( 1 );
+            TestHelper.DropDatabase( name );
+            TestHelper.GetDatabaseOptions( name ).ShouldBeNull();
+        }
+        finally
+        {
+            TestHelper.DropDatabase( name );
+        }
+        TestHelper.GetDatabaseOptions( name ).ShouldBeNull();
+    }
+
+    [Test]
+    [Explicit( "The SQL Server service account needs write access to the DBBackup folder of this test project. A checkout under a user profile (for example in %TEMP%) usually does not give it." )]
+    public void a_database_name_with_special_characters_can_be_backed_up_and_restored()
+    {
+        // '-', ' ', ']' and ''' all require quoting.
+        var name = TestHelper.GetScopedDatabaseName( "CKTEST_SqlHelper Backup-Name]'" );
+        var defaultName = TestHelper.DefaultDatabaseOptions.DatabaseName;
+        try
+        {
+            TestHelper.EnsureDatabase( new SqlServerDatabaseOptions( name ), reset: true ).ShouldBeTrue();
             TestHelper.ExecuteScripts( "create table dbo.T( Id int not null ); insert into dbo.T( Id ) values( 3712 );", name ).ShouldBeTrue();
 
             var backup = TestHelper.Backup.CreateBackup( name );
