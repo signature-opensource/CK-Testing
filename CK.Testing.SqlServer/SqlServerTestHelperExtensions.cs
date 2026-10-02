@@ -337,6 +337,14 @@ public static class SqlServerTestHelperExtensions
         } );
     }
 
+    // Quotes a database name for a SQL statement: "[name]", with each ']' doubled.
+    // Every statement that contains a database name must use it: a name can contain '-', ' ' or ']'.
+    internal static string QuoteName( string name ) => "[" + name.Replace( "]", "]]" ) + "]";
+
+    // Quotes a text as a SQL Unicode string literal: "N'text'", with each ''' doubled.
+    // Use it for a database name or a file path in a string literal of a script.
+    internal static string QuoteString( string text ) => "N'" + text.Replace( "'", "''" ) + "'";
+
     // Appends the suffix. The result has MaxDatabaseNameLength characters or less: the end of the suffix
     // is removed when necessary. A name that has MaxDatabaseNameLength characters or more is not changed.
     internal static string ApplyDatabaseNameSuffix( string name, string suffix )
@@ -431,11 +439,11 @@ public static class SqlServerTestHelperExtensions
                     helper.Monitor.Info( $"Current is {current}. Must be recreated." );
                     DoDrop( helper, current.DatabaseName, true );
                 }
-                string create = $@"create database {o.DatabaseName} collate {o.Collation};";
+                string create = $@"create database {QuoteName( o.DatabaseName )} collate {o.Collation};";
                 if( normalizedLevel != 0 )
                 {
                     create += Environment.NewLine + "go" + Environment.NewLine;
-                    create += $"alter database {o.DatabaseName} set compatibility_level = {normalizedLevel}";
+                    create += $"alter database {QuoteName( o.DatabaseName )} set compatibility_level = {normalizedLevel}";
                 }
                 using( var oCon = new SqlConnection( GetConfiguration( helper ).MasterConnectionString ) )
                 using( var cmd = new SqlCommand( create, oCon ) )
@@ -479,14 +487,16 @@ public static class SqlServerTestHelperExtensions
                 using( var cmd = new SqlCommand() )
                 {
                     cmd.Connection = oCon;
+                    cmd.Parameters.AddWithValue( "@N", dbName );
                     oCon.Open();
 
-                    var exec = $"if db_id('{dbName}') is not null begin ";
+                    var name = QuoteName( dbName );
+                    var exec = "if db_id(@N) is not null begin ";
                     if( closeExistingConnections )
                     {
-                        exec += $"alter database [{dbName}] set single_user with rollback immediate;";
+                        exec += $"alter database {name} set single_user with rollback immediate;";
                     }
-                    exec += $"drop database [{dbName}]; select 1; end else begin select 0; end";
+                    exec += $"drop database {name}; select 1; end else begin select 0; end";
 
                     cmd.CommandText = exec;
                     if( (int)cmd.ExecuteScalar() == 0 )
@@ -495,7 +505,7 @@ public static class SqlServerTestHelperExtensions
                     }
                     else
                     {
-                        cmd.CommandText = $"exec msdb.dbo.sp_delete_database_backuphistory @database_name = N'{dbName}';";
+                        cmd.CommandText = "exec msdb.dbo.sp_delete_database_backuphistory @database_name = @N;";
                         cmd.ExecuteNonQuery();
                     }
                 }

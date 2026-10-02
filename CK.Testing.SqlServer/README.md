@@ -68,17 +68,22 @@ The member names, the parameters and the call syntax (`TestHelper.EnsureDatabase
 `DropDatabase` builds this statement for any name that it receives:
 
 ```csharp
-var exec = $"if db_id('{dbName}') is not null begin ";
+var name = QuoteName( dbName );
+var exec = "if db_id(@N) is not null begin ";
 if( closeExistingConnections )
 {
-    exec += $"alter database [{dbName}] set single_user with rollback immediate;";
+    exec += $"alter database {name} set single_user with rollback immediate;";
 }
-exec += $"drop database [{dbName}]; select 1; end else begin select 0; end";
+exec += $"drop database {name}; select 1; end else begin select 0; end";
 ```
 
 No code compares the name with `master`, `tempdb`, `model` or any other name. The `if db_id(...) is not null`
 guard makes a second drop do nothing, instead of an error. The `CKTEST_` prefix of the default name (see
 below) is the only safeguard.
+
+Every statement that contains a database name puts it in square brackets, with each `]` doubled
+(`QuoteName`). A name in a string literal, and a backup file path, use `N'...'` with each `'` doubled
+(`QuoteString`). A database name can therefore contain `-`, a space, `]` or `'`.
 
 ## The default database name is prefixed, and that is the real safety net.
 
@@ -209,6 +214,12 @@ The type of the argument is `SqlServerDatabaseEventArgs`. Its file has another n
 `Backup` gives a [`BackupManager`](BackupManager.cs) for the backup and restore cycle. The backups go to the
 `DBBackup` folder of the test project. The explicit tests of `DBLayerTests` that use it depend on their order:
 `backup_create` fails if the database does not exist, and `backup_restore` fails if no backup exists.
+
+`RestoreBackup( name )` needs only the server. It runs on `master`. When the database exists, it closes its
+connections and replaces its content. When it does not exist, the restore creates it. It does not create or
+change the default database, and it does not fire `OnDatabaseCreatedOrDropped`.
+[`QuotedNameTests`](../Tests/SqlHelper.Tests/QuotedNameTests.cs) runs the full cycle (create, back up,
+restore, drop) on a name with special characters.
 
 ## Requires.
 

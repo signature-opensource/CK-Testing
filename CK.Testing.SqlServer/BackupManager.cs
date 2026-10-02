@@ -1,4 +1,5 @@
 using CK.Core;
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -132,7 +133,8 @@ namespace CK.Testing.SqlServer
             var fName = BackupFolder.AppendPart( GetFileName( dbName, t ) );
             using( Helper.Monitor.OpenInfo( $"Creating a Backup for '{dbName}'." ) )
             {
-                if( Helper.ExecuteScripts( $"backup database [{dbName}] to disk = N'{fName}' with name = N'{dbName}', copy_only, noformat, init, skip, compression;", dbName ) )
+                var script = $"backup database {SqlServerTestHelperExtensions.QuoteName( dbName )} to disk = {SqlServerTestHelperExtensions.QuoteString( fName )} with name = {SqlServerTestHelperExtensions.QuoteString( dbName )}, copy_only, noformat, init, skip, compression;";
+                if( Helper.ExecuteScripts( script, dbName ) )
                 {
                     if( File.Exists( fName ) )
                     {
@@ -152,6 +154,10 @@ namespace CK.Testing.SqlServer
 
         /// <summary>
         /// Restores a backup. See <see cref="GetBackups(string?)"/>.
+        /// <para>
+        /// The database does not need to exist: the restore creates it. When it exists, its connections are closed
+        /// and its content is replaced. No other database is created or changed.
+        /// </para>
         /// </summary>
         /// <param name="dbName">Database name to restore. Defaults to the name of the default database options.</param>
         /// <param name="index">
@@ -193,12 +199,16 @@ namespace CK.Testing.SqlServer
             }
             using( Helper.Monitor.OpenInfo( msg ) )
             {
-                Helper.EnsureDatabase( null, false );
-                var script = $@"use [master]; alter database [{dbName}] set single_user with rollback immediate;
-restore database [{dbName}] from disk = N'{BackupFolder.AppendPart( backup.FileName )}' with file = 1,  nounload, replace;
-alter database [{dbName}] set multi_user;";
+                // The restore needs only the server: "restore ... with replace" creates the database when it does not exist.
+                // The script runs on master. When the database exists, its connections are closed: the pooled
+                // connections to it become invalid, so the pools are cleared.
+                SqlConnection.ClearAllPools();
+                var name = SqlServerTestHelperExtensions.QuoteName( dbName );
+                var script = $@"if db_id({SqlServerTestHelperExtensions.QuoteString( dbName )}) is not null alter database {name} set single_user with rollback immediate;
+restore database {name} from disk = {SqlServerTestHelperExtensions.QuoteString( BackupFolder.AppendPart( backup.FileName ) )} with file = 1, nounload, replace;
+alter database {name} set multi_user;";
 
-                if( Helper.ExecuteScripts( script, dbName ) )
+                if( Helper.ExecuteScripts( script, "master" ) )
                 {
                     Helper.Monitor.CloseGroup( "Success." );
                     return backup;
