@@ -91,12 +91,24 @@ public class DBLayerTests
     [Test]
     public void default_database_name_derives_from_the_test_project_name()
     {
-        // No configuration sets "SqlServer/DatabaseName" in this repository.
+        // No configuration sets "SqlServer/DatabaseName" or "SqlServer/DatabaseNameSuffix" in this repository.
+        // In a main checkout, the name is "CKTEST_SqlHelper". In a linked git worktree, it ends with "_<worktree id>".
+        var expected = "CKTEST_SqlHelper" + SqlServerTestHelperExtensions.GetWorktreeDatabaseNameSuffix( LocalDevSolution.WorktreeId );
+        TestHelper.Monitor.Info( $"Worktree identifier: '{LocalDevSolution.WorktreeId}', default database name: '{expected}'." );
+        if( LocalDevSolution.WorktreeId == null ) expected.ShouldBe( "CKTEST_SqlHelper" );
         var options = TestHelper.DefaultDatabaseOptions;
-        options.DatabaseName.ShouldBe( "CKTEST_SqlHelper" );
+        options.DatabaseName.ShouldBe( expected );
         // The configuration is read once: the default options are always the same object.
         TestHelper.DefaultDatabaseOptions.ShouldBeSameAs( options );
-        TestHelper.GetConnectionString().ShouldBe( TestHelper.GetConnectionString( "CKTEST_SqlHelper" ) );
+        TestHelper.GetConnectionString().ShouldBe( TestHelper.GetConnectionString( expected ) );
+    }
+
+    [Test]
+    public void GetScopedDatabaseName_appends_the_same_suffix_as_the_default_name()
+    {
+        var suffix = SqlServerTestHelperExtensions.GetWorktreeDatabaseNameSuffix( LocalDevSolution.WorktreeId );
+        TestHelper.GetScopedDatabaseName( "TEST_Fixed" ).ShouldBe( "TEST_Fixed" + suffix );
+        Should.Throw<ArgumentException>( () => TestHelper.GetScopedDatabaseName( "" ) );
     }
 
     /// <summary>

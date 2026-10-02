@@ -21,7 +21,12 @@ namespace CK.Testing;
 /// <para>
 /// These operations are dangerous. No database name is protected: a drop is sent for any name,
 /// including a system database. The default database name starts with "CKTEST_" and this prefix
-/// is the only protection for a real database. A configured "SqlServer/DatabaseName" is used as-is.
+/// is the only protection for a real database. A configured "SqlServer/DatabaseName" has no prefix.
+/// </para>
+/// <para>
+/// In a linked git worktree, the default database name ends with a suffix that is specific to the worktree,
+/// so that two checkouts of one repository do not use the same database.
+/// See <see cref="extension(IMonitorTestHelper).GetScopedDatabaseName(string)"/>.
 /// </para>
 /// <para>
 /// The configuration is read once per process, from <see cref="TestHelperConfiguration.Default"/>,
@@ -40,6 +45,9 @@ public static class SqlServerTestHelperExtensions
     static Exception? _configurationError;
     // Set once by GetMaxCompatibilityLevel. 0 until the server answers.
     static int _maxCompatibilityLevel;
+
+    // The maximal length of a database name (the SQL Server "sysname" type).
+    internal const int MaxDatabaseNameLength = 128;
 
     /// <summary>
     /// Fires when a database is created, reset or dropped by <see cref="EnsureDatabase(IMonitorTestHelper, ISqlServerDatabaseOptions?, bool)"/>
@@ -77,6 +85,11 @@ public static class SqlServerTestHelperExtensions
         /// part is removed. For example, the project "SqlHelper.Tests" gives "CKTEST_SqlHelper".
         /// </para>
         /// <para>
+        /// The database name suffix is then appended, to a configured name too (see <see cref="extension(IMonitorTestHelper).GetScopedDatabaseName(string)"/>).
+        /// By default, the suffix is empty in a main checkout. In the linked git worktree "feat-x", the project
+        /// "SqlHelper.Tests" gives "CKTEST_SqlHelper_feat_x".
+        /// </para>
+        /// <para>
         /// The collation is the "SqlServer/Collation" configuration. It defaults to "Latin1_General_100_BIN2".
         /// </para>
         /// <para>
@@ -92,6 +105,29 @@ public static class SqlServerTestHelperExtensions
         /// <param name="databaseName">The database name. Defaults to the <see cref="extension(IMonitorTestHelper).DefaultDatabaseOptions"/> name.</param>
         /// <returns>The connection string to the database.</returns>
         public string GetConnectionString( string? databaseName = null ) => DoGetConnectionString( helper, databaseName );
+
+        /// <summary>
+        /// Gets the name of a database in the scope of this checkout: <paramref name="databaseName"/> followed by the
+        /// database name suffix. Use it for a fixed name of a database that a test creates, so that the tests of two
+        /// checkouts of one repository do not use the same database. Do not use it for a system database.
+        /// <para>
+        /// The suffix is the "SqlServer/DatabaseNameSuffix" configuration. An empty configured value disables it.
+        /// When it is not configured, the suffix is empty in a main checkout and in a submodule. In a linked git worktree,
+        /// it is '_' followed by the worktree identifier (<see cref="LocalDevSolution.WorktreeId"/>), where each character
+        /// that is not an ASCII letter, an ASCII digit or '_' becomes '_'. For example, the worktree "feat-x" gives "_feat_x".
+        /// A configured suffix is used as-is: use only letters, digits and '_'.
+        /// </para>
+        /// <para>
+        /// The result has 128 characters or less (the SQL Server limit): when it is too long, the end of the suffix is removed.
+        /// </para>
+        /// </summary>
+        /// <param name="databaseName">The database name. Must not be null or empty.</param>
+        /// <returns>The database name with the suffix.</returns>
+        public string GetScopedDatabaseName( string databaseName )
+        {
+            Throw.CheckNotNullOrEmptyArgument( databaseName );
+            return ApplyDatabaseNameSuffix( databaseName, GetConfiguration( helper ).DatabaseNameSuffix );
+        }
 
         /// <summary>
         /// Gets the options of an existing database. This opens a connection to the server.
@@ -166,15 +202,18 @@ public static class SqlServerTestHelperExtensions
 
     sealed class Configuration
     {
-        public Configuration( string masterConnectionString, SqlServerDatabaseOptions defaultDatabaseOptions )
+        public Configuration( string masterConnectionString, SqlServerDatabaseOptions defaultDatabaseOptions, string databaseNameSuffix )
         {
             MasterConnectionString = masterConnectionString;
             DefaultDatabaseOptions = defaultDatabaseOptions;
+            DatabaseNameSuffix = databaseNameSuffix;
         }
 
         public string MasterConnectionString { get; }
 
         public SqlServerDatabaseOptions DefaultDatabaseOptions { get; }
+
+        public string DatabaseNameSuffix { get; }
     }
 
     static Configuration GetConfiguration( IBasicTestHelper helper )
@@ -217,10 +256,16 @@ public static class SqlServerTestHelperExtensions
     // some keys undeclared.
     static Configuration ReadConfiguration( TestHelperConfiguration config, string testProjectName )
     {
+        var cSuffix = config.Declare( "SqlServer/DatabaseNameSuffix",
+                                      "The suffix of the default database name (also of a configured 'SqlServer/DatabaseName') and of the GetScopedDatabaseName results. An empty value disables it. When not configured, this is empty in a main checkout and '_<worktree id>' in a linked git worktree.",
+                                      null );
+        var suffix = cSuffix.ConfiguredValue ?? GetWorktreeDatabaseNameSuffix( LocalDevSolution.WorktreeId );
+        cSuffix.SetDefaultValue( suffix );
+
         var cName = config.Declare( "SqlServer/DatabaseName",
-                                    $"The default database name. When not configured this is built based on the project name '{testProjectName}'.",
+                                    $"The default database name. When not configured this is built based on the project name '{testProjectName}'. The 'SqlServer/DatabaseNameSuffix' is appended to it.",
                                     null );
-        var dbName = GetDefaultDatabaseName( cName.ConfiguredValue, testProjectName );
+        var dbName = GetDefaultDatabaseName( cName.ConfiguredValue, testProjectName, suffix );
         cName.SetDefaultValue( dbName );
 
         var masterConnectionString = config.Declare( "SqlServer/MasterConnectionString",
@@ -257,18 +302,48 @@ public static class SqlServerTestHelperExtensions
             Collation = collation,
             CompatibilityLevel = compatibilityLevel
         };
-        return new Configuration( master, defaultOptions );
+        return new Configuration( master, defaultOptions, suffix );
     }
 
     // This is the only place that computes the default database name.
-    // A configured name is used as-is. Else the name derives from the test project name.
-    static string GetDefaultDatabaseName( string? configuredName, string testProjectName )
+    // The name is the configured name, else it derives from the test project name.
+    // The suffix is appended in both cases.
+    internal static string GetDefaultDatabaseName( string? configuredName, string testProjectName, string suffix )
     {
-        if( configuredName != null ) return configuredName;
-        var n = "CKTEST_" + testProjectName.Replace( '.', '_' ).Replace( '-', '_' );
-        var dbName = n.Replace( "_Tests", String.Empty );
-        if( dbName == n ) dbName = n.Replace( "Tests", String.Empty );
-        return dbName;
+        var dbName = configuredName;
+        if( dbName == null )
+        {
+            var n = "CKTEST_" + testProjectName.Replace( '.', '_' ).Replace( '-', '_' );
+            dbName = n.Replace( "_Tests", String.Empty );
+            if( dbName == n ) dbName = n.Replace( "Tests", String.Empty );
+        }
+        return ApplyDatabaseNameSuffix( dbName, suffix );
+    }
+
+    // Returns the default suffix. It is empty when there is no worktree identifier (main checkout, submodule).
+    // Else it is '_' followed by the identifier, where each character that is not [A-Za-z0-9_] becomes '_'.
+    // Git keeps the non-ASCII letters in the identifier and replaces the spaces with '-'.
+    internal static string GetWorktreeDatabaseNameSuffix( string? worktreeId )
+    {
+        if( String.IsNullOrEmpty( worktreeId ) ) return String.Empty;
+        return String.Create( worktreeId.Length + 1, worktreeId, static ( span, id ) =>
+        {
+            span[0] = '_';
+            for( int i = 0; i < id.Length; ++i )
+            {
+                char c = id[i];
+                span[i + 1] = char.IsAsciiLetterOrDigit( c ) || c == '_' ? c : '_';
+            }
+        } );
+    }
+
+    // Appends the suffix. The result has MaxDatabaseNameLength characters or less: the end of the suffix
+    // is removed when necessary. A name that has MaxDatabaseNameLength characters or more is not changed.
+    internal static string ApplyDatabaseNameSuffix( string name, string suffix )
+    {
+        int room = MaxDatabaseNameLength - name.Length;
+        if( suffix.Length == 0 || room <= 0 ) return name;
+        return suffix.Length <= room ? name + suffix : name + suffix.Substring( 0, room );
     }
 
     // Reads the server version once. A level equal to this maximum is normalized to 0.

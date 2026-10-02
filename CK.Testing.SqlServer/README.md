@@ -46,7 +46,8 @@ var c2 = TestHelper.GetConnectionString( "Toto" );
 c2.ShouldContain( "Toto" );
 ```
 
-The test project is named `SqlHelper.Tests`, so it uses the database `CKTEST_SqlHelper` with no configuration.
+The test project is named `SqlHelper.Tests`, so it uses the database `CKTEST_SqlHelper` with no configuration
+(in a main checkout; see [the worktree scope](#each-git-worktree-has-its-own-databases) for a linked worktree).
 
 ## Migration from `SqlServerTestHelper`.
 
@@ -85,7 +86,7 @@ When `SqlServer/DatabaseName` is not configured, the name derives from the test 
 
 ```csharp
 var n = "CKTEST_" + testProjectName.Replace( '.', '_' ).Replace( '-', '_' );
-var dbName = n.Replace( "_Tests", String.Empty );
+dbName = n.Replace( "_Tests", String.Empty );
 if( dbName == n ) dbName = n.Replace( "Tests", String.Empty );
 ```
 
@@ -93,17 +94,67 @@ if( dbName == n ) dbName = n.Replace( "Tests", String.Empty );
 
 - Two test projects can run side by side with no configuration, because each one has its own name.
 - A default test database cannot have the name of a real database: the `CKTEST_` prefix prevents it.
-  **If you configure `SqlServer/DatabaseName`, you remove that protection**: the configured value is used
-  as-is, and one call drops it.
+  **If you configure `SqlServer/DatabaseName`, you remove that protection**: the configured value gets no
+  prefix, and one call drops it.
 
-The method `GetDefaultDatabaseName` in `SqlServerTestHelperExtensions` is the only place that computes this name.
+The database name suffix (see the next section) is then appended to the derived name or to the configured
+name. The method `GetDefaultDatabaseName` in `SqlServerTestHelperExtensions` is the only place that computes
+the default name.
+
+## Each git worktree has its own databases.
+
+Two checkouts of one repository run the same tests. If they use the same database, parallel tests in two
+checkouts drop the database of the other one. A database name suffix prevents this for linked git worktrees.
+
+The suffix is the `SqlServer/DatabaseNameSuffix` configuration. When it is not configured:
+
+- In a main checkout (and in a submodule), the suffix is empty. Nothing changes.
+- In a linked git worktree, the suffix is `_` followed by the worktree identifier: the `<id>` of the git
+  folder `<repository>/.git/worktrees/<id>` (`LocalDevSolution.WorktreeId`, in `CK.ActivityMonitor`). Each
+  character that is not an ASCII letter, an ASCII digit or `_` becomes `_`.
+
+| Checkout | Worktree identifier | `SqlHelper.Tests` default database |
+|---|---|---|
+| Main checkout | none | `CKTEST_SqlHelper` |
+| Linked worktree | `feat-x` | `CKTEST_SqlHelper_feat_x` |
+| Second linked worktree created as `feat-x` (git gives the identifier `feat-x1`) | `feat-x1` | `CKTEST_SqlHelper_feat_x1` |
+| Linked worktree with `SqlServer/DatabaseName` = `MyDb` | `wt` | `MyDb_wt` |
+
+The worktree identifier is unique in a repository, but the worktree folder name is not: this is why the
+identifier is used. Git replaces the spaces with `-` and keeps the non-ASCII letters (`Feat-X-é` gives the
+suffix `_Feat_X__`).
+
+The suffix is also appended to a configured `SqlServer/DatabaseName`, because a `TestHelper.config` file in
+the repository applies to all its worktrees.
+
+A test that uses a fixed database name can get the same scope with `GetScopedDatabaseName`:
+
+```csharp
+var name = TestHelper.GetScopedDatabaseName( "TEST_SetupEngine_Version" );
+// "TEST_SetupEngine_Version" in a main checkout, "TEST_SetupEngine_Version_feat_x" in the worktree "feat-x".
+```
+
+Do not use it for a system database (`master`, `msdb`, `model`, `tempdb`) or for a name that must not exist.
+
+Rules:
+
+- A configured `SqlServer/DatabaseNameSuffix` replaces the default suffix. It is used as-is: use only letters,
+  digits and `_`, and start it with `_` if you want a separator. An empty value disables the suffix, also in a
+  worktree. Use a configured suffix for two separate clones of one repository: they are not worktrees, so
+  they have the same default name.
+- A database name has 128 characters or less (the SQL Server limit). When the name and the suffix are too
+  long, the end of the suffix is removed. Two long identifiers with the same start can then give the same name.
+- Each worktree creates its own databases. They stay on the server when the worktree is deleted: nothing
+  removes them. Git can give the identifier of a deleted worktree to a new one; the new worktree then finds
+  the old database (`EnsureDatabase( reset: true )` creates it again).
 
 ## Configuration.
 
 | Member | Configuration key | Default |
 |--------|-------------------|---------|
 | `MasterConnectionString` | `SqlServer/MasterConnectionString` | `Server=.;Database=master;Integrated Security=SSPI;TrustServerCertificate=True` |
-| `DefaultDatabaseOptions.DatabaseName` | `SqlServer/DatabaseName` | `CKTEST_` + the test project name, see above |
+| `DefaultDatabaseOptions.DatabaseName` | `SqlServer/DatabaseName` | `CKTEST_` + the test project name, see above. The suffix is appended. |
+| The suffix of the default name and of `GetScopedDatabaseName` | `SqlServer/DatabaseNameSuffix` | Empty in a main checkout, `_<worktree id>` in a linked git worktree |
 | `DefaultDatabaseOptions.Collation` | `SqlServer/Collation` | `Latin1_General_100_BIN2` |
 | `DefaultDatabaseOptions.CompatibilityLevel` | `SqlServer/CompatibilityLevel` | `0` |
 

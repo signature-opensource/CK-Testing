@@ -7,4 +7,7 @@
     <ProjectReference Include="..\CK.Testing\CK.Testing.csproj" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.0" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="SqlHelper.Tests" />
+  </ItemGroup>
 </Project>
