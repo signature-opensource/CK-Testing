@@ -126,10 +126,12 @@ main repository, because a worktree folder can have any name. The `{SolutionName
 configuration uses the same value.
 
 The initialization also checks that the bin folder is below a `Debug` or `Release` folder and a `bin` folder,
-and that a `Tests` folder is above the test project. This `Tests` folder is usually in the solution. For a
-solution that is in another repository (typically a submodule in the `Tests` folder of its superproject), a
-`Tests` folder between the solution folder and the enclosing repository root is also accepted. If a check
-fails, every test fails with the initialization error.
+and that a `Tests` folder is above the test project. This `Tests` folder is usually in the solution. When the
+solution is a submodule (often in the `Tests` folder of its superproject), a `Tests` folder of the superproject,
+between the submodule and the superproject folder, is also accepted. This repeats for nested submodules. No
+folder above a main checkout or a linked worktree is accepted. The solution folder must not be a root (`/`, a
+drive or a UNC share); a folder like `/src` (a Docker `WORKDIR`) is accepted. If a check fails, every test fails
+with the initialization error.
 
 In a linked worktree, the configuration files are read from the worktree folder down. A `TestHelper.config`
 file at the root of the main checkout does not apply.

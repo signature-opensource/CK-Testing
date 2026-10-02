@@ -75,7 +75,7 @@ public partial class StaticBasicTestHelper
             {
                 Throw.InvalidOperationException( $"Initialization error: The project must be in a git repository (above '{_binFolder}')." );
             }
-            if( solutionFolder.Parts.Count <= 1 )
+            if( IsRootFolder( solutionFolder ) )
             {
                 Throw.InvalidOperationException( $"The '.git' cannot be directly on the root." );
             }
@@ -110,13 +110,30 @@ public partial class StaticBasicTestHelper
     }
 
     /// <summary>
+    /// Gets whether a path is a root: the empty path, "/", a drive ("C:") or a UNC share ("//server/share").
+    /// A rooted path with one part, like "/src", is not a root.
+    /// </summary>
+    /// <param name="path">The path.</param>
+    /// <returns>True if the path is a root.</returns>
+    internal static bool IsRootFolder( NormalizedPath path )
+    {
+        return path.Parts.Count == 0
+               || (path.Parts.Count == 1 && path.RootKind == NormalizedPathRootKind.RootedByFirstPart)
+               || (path.Parts.Count <= 2 && path.RootKind == NormalizedPathRootKind.RootedByDoubleSeparator);
+    }
+
+    /// <summary>
     /// Finds the deepest "Tests" folder above the test project folder.
     /// <para>
     /// The folders between the test project folder and the solution folder are tried first.
-    /// A solution can be in another git repository, typically a submodule in the "Tests" folder of its
-    /// superproject. The folders above the solution folder are then tried, up to the folder that contains
-    /// the ".git" directory or file of the enclosing repository. Without an enclosing repository, no folder
-    /// above the solution folder is accepted.
+    /// A git submodule is its own solution, but it is in the working folder of its superproject, often in its
+    /// "Tests" folder. When the solution is a submodule, the folders of the superproject above the submodule are
+    /// tried too, up to the superproject folder. This repeats for nested submodules. Above a main checkout or a
+    /// linked worktree, no folder is tried.
+    /// </para>
+    /// <para>
+    /// The superproject is found with <see cref="LocalDevSolution.TryFindSolutionFolder(string, out NormalizedPath, out string?, out string?)"/>:
+    /// a ".git" file that does not point to a git directory is ignored.
     /// </para>
     /// </summary>
     /// <param name="testProjectFolder">The test project folder.</param>
@@ -124,18 +141,35 @@ public partial class StaticBasicTestHelper
     /// <returns>The "Tests" folder, or null if no "Tests" folder is found.</returns>
     internal static NormalizedPath? FindTestsFolder( NormalizedPath testProjectFolder, NormalizedPath solutionFolder )
     {
-        for( var p = testProjectFolder.RemoveLastPart(); p.Parts.Count > solutionFolder.Parts.Count; p = p.RemoveLastPart() )
+        var found = FindBelow( testProjectFolder.RemoveLastPart(), solutionFolder );
+        var boundary = solutionFolder;
+        while( found == null && IsSubmodule( boundary ) )
         {
-            if( p.LastPart == "Tests" ) return p;
+            var parent = boundary.RemoveLastPart();
+            if( !LocalDevSolution.TryFindSolutionFolder( parent, out var superproject, out _, out _ ) ) break;
+            found = FindBelow( parent, superproject );
+            boundary = superproject;
         }
-        NormalizedPath? candidate = null;
-        for( var p = solutionFolder.RemoveLastPart(); p.HasParts; p = p.RemoveLastPart() )
+        return found;
+
+        static NormalizedPath? FindBelow( NormalizedPath start, NormalizedPath root )
         {
-            var dotGit = p.AppendPart( ".git" ).Path;
-            if( Directory.Exists( dotGit ) || File.Exists( dotGit ) ) return candidate;
-            if( candidate == null && p.LastPart == "Tests" ) candidate = p;
+            for( var p = start; p.Parts.Count > root.Parts.Count; p = p.RemoveLastPart() )
+            {
+                if( p.LastPart == "Tests" ) return p;
+            }
+            return null;
         }
-        return null;
+
+        // A submodule has a ".git" file and LocalDevSolution sees it as a solution folder without worktree identifier.
+        // The search starts at the folder: the folder is the solution folder when the result has the same depth.
+        static bool IsSubmodule( NormalizedPath folder )
+        {
+            return File.Exists( folder.AppendPart( ".git" ) )
+                   && LocalDevSolution.TryFindSolutionFolder( folder, out var f, out _, out var worktreeId )
+                   && f.Parts.Count == folder.Parts.Count
+                   && worktreeId == null;
+        }
     }
 
     /// <summary>
