@@ -8,16 +8,14 @@ using System.Text.RegularExpressions;
 namespace CK.Testing.SqlServer
 {
     /// <summary>
-    /// Supports <see cref="ISqlServerTestHelperCore.Backup"/> related operations.
+    /// Supports the backup and restore operations. Use the <see cref="SqlServerTestHelperExtensions"/> <c>Backup</c>
+    /// property to get it.
     /// </summary>
     public class BackupManager
     {
-        readonly SqlServerTestHelper _helper;
-
-        internal BackupManager( SqlServerTestHelper helper, IMonitorTestHelper others )
+        internal BackupManager( IMonitorTestHelper helper )
         {
-            _helper = helper;
-            Helper = others;
+            Helper = helper;
         }
 
         IMonitorTestHelper Helper { get; }
@@ -95,11 +93,11 @@ namespace CK.Testing.SqlServer
         /// <summary>
         /// Gets the existing backups for a database in <see cref="BackupFolder"/>.
         /// </summary>
-        /// <param name="dbName">Database name. Defaults to default <see cref="ISqlServerTestHelperCore.DefaultDatabaseOptions"/>.</param>
+        /// <param name="dbName">Database name. Defaults to the name of the default database options.</param>
         /// <returns>The list of backups. Can be empty.</returns>
         public IReadOnlyList<Backup> GetBackups( string? dbName = null )
         {
-            if( dbName == null ) dbName = _helper.DoGetDefaultDatabaseOptions().DatabaseName;
+            dbName ??= Helper.DefaultDatabaseOptions.DatabaseName;
             return Directory.Exists( BackupFolder )
                     ? Directory.GetFiles( BackupFolder, dbName + " *.bak" )
                                .Select( f => MatchFileName( f ) )
@@ -121,11 +119,11 @@ namespace CK.Testing.SqlServer
         /// <summary>
         /// Creates a new backup in the <see cref="BackupFolder"/>.
         /// </summary>
-        /// <param name="dbName">Database name to backup. Defaults to default <see cref="ISqlServerTestHelperCore.DefaultDatabaseOptions"/>.</param>
+        /// <param name="dbName">Database name to backup. Defaults to the name of the default database options.</param>
         /// <returns>The new backup description or null on error.</returns>
         public Backup? CreateBackup( string? dbName = null )
         {
-            if( dbName == null ) dbName = _helper.DoGetDefaultDatabaseOptions().DatabaseName;
+            dbName ??= Helper.DefaultDatabaseOptions.DatabaseName;
 
             var t = DateTime.UtcNow;
             t = new DateTime( t.Ticks - (t.Ticks % TimeSpan.TicksPerSecond), t.Kind );
@@ -134,7 +132,7 @@ namespace CK.Testing.SqlServer
             var fName = BackupFolder.AppendPart( GetFileName( dbName, t ) );
             using( Helper.Monitor.OpenInfo( $"Creating a Backup for '{dbName}'." ) )
             {
-                if( _helper.DoExecuteScripts( $"backup database [{dbName}] to disk = N'{fName}' with name = N'{dbName}', copy_only, noformat, init, skip, compression;", dbName ) )
+                if( Helper.ExecuteScripts( $"backup database [{dbName}] to disk = N'{fName}' with name = N'{dbName}', copy_only, noformat, init, skip, compression;", dbName ) )
                 {
                     if( File.Exists( fName ) )
                     {
@@ -155,7 +153,7 @@ namespace CK.Testing.SqlServer
         /// <summary>
         /// Restores a backup. See <see cref="GetBackups(string?)"/>.
         /// </summary>
-        /// <param name="dbName">Database name to restore. Defaults to default <see cref="ISqlServerTestHelperCore.DefaultDatabaseOptions"/>.</param>
+        /// <param name="dbName">Database name to restore. Defaults to the name of the default database options.</param>
         /// <param name="index">
         /// By default, the most recent backup is restored.
         /// You can use <see cref="int.MaxValue"/> to restore the oldest available backup.
@@ -164,7 +162,7 @@ namespace CK.Testing.SqlServer
         public Backup? RestoreBackup( string? dbName = null, int index = 0 )
         {
             Throw.CheckOutOfRangeArgument( index >= 0 );
-            if( dbName == null ) dbName = _helper.DoGetDefaultDatabaseOptions().DatabaseName;
+            dbName ??= Helper.DefaultDatabaseOptions.DatabaseName;
             var all = GetBackups( dbName );
             if( all.Count == 0 )
             {
@@ -195,12 +193,12 @@ namespace CK.Testing.SqlServer
             }
             using( Helper.Monitor.OpenInfo( msg ) )
             {
-                _helper.DoEnsureDatabase( null, false );
+                Helper.EnsureDatabase( null, false );
                 var script = $@"use [master]; alter database [{dbName}] set single_user with rollback immediate;
 restore database [{dbName}] from disk = N'{BackupFolder.AppendPart( backup.FileName )}' with file = 1,  nounload, replace;
 alter database [{dbName}] set multi_user;";
 
-                if( _helper.DoExecuteScripts( script, dbName ) )
+                if( Helper.ExecuteScripts( script, dbName ) )
                 {
                     Helper.Monitor.CloseGroup( "Success." );
                     return backup;

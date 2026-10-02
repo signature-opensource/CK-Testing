@@ -3,7 +3,7 @@ using System;
 namespace CK.Testing.SqlServer
 {
     /// <summary>
-    /// Argument of the <see cref="SqlServer.ISqlServerTestHelperCore.OnDatabaseCreatedOrDropped"/> event.
+    /// Argument of the <see cref="SqlServerTestHelperExtensions.OnDatabaseCreatedOrDropped"/> event.
     /// </summary>
     public class SqlServerDatabaseEventArgs : EventArgs
     {

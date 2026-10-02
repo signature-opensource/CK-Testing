@@ -10,20 +10,20 @@ namespace CK.Testing;
 /// </summary>
 public class StupidTestHelper : IStupidTestHelperCore
 {
-    readonly ISqlServerTestHelper _sql;
     string? _lastDatabaseCreatedOrDroppedName;
     EventHandler? _onStupidMethodCalled;
     int _countCall;
 
     /// <summary>
-    /// Other test helpers will be resolved and injected.
-    /// This implementation uses them but focuses on the implementation of its own interface (here the <see cref="IStupidTestHelperCore"/>).
+    /// Other test helpers can be resolved and injected: a helper declares the helpers that it needs
+    /// as constructor parameters (for example an <see cref="IMonitorTestHelper"/>).
+    /// This helper needs none: the SQL Server event is a static event.
     /// </summary>
-    /// <param name="sql">This helper is based on the (real) Sql test helper.</param>
-    internal StupidTestHelper( ISqlServerTestHelper sql )
+    internal StupidTestHelper()
     {
-        _sql = sql;
-        _sql.OnDatabaseCreatedOrDropped += ( source, e ) =>
+        // The event is static: this subscription lives as long as the process.
+        // A resolver creates this helper once and keeps it.
+        SqlServerTestHelperExtensions.OnDatabaseCreatedOrDropped += ( source, e ) =>
         {
             _lastDatabaseCreatedOrDroppedName = e.DatabaseOptions.DatabaseName;
             DoStupidMethod();

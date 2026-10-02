@@ -1,10 +1,11 @@
 using CK.Core;
+using CK.Testing;
 using Shouldly;
 using NUnit.Framework;
 using System;
 using System.IO;
 using System.Linq;
-using static CK.Testing.SqlServerTestHelper;
+using static CK.Testing.MonitorTestHelper;
 
 namespace SqlHelperTests;
 
@@ -70,9 +71,37 @@ public class DBLayerTests
         c.ShouldContain( "Integrated Security" );
     }
 
+    [Test]
+    public void OnDatabaseCreatedOrDropped_static_event_reaches_a_mixin_helper()
+    {
+        // Resolving the IStupidTestHelper creates the StupidTestHelper that subscribes to the static event.
+        var stupid = StupidTestHelper.TestHelper;
+        int before = stupid.CountOfStupidMethodCalls;
+        var dbName = TestHelper.DefaultDatabaseOptions.DatabaseName;
+
+        TestHelper.EnsureDatabase( reset: true ).ShouldBeTrue();
+        stupid.LastDatabaseCreatedOrDroppedName.ShouldBe( dbName );
+        stupid.CountOfStupidMethodCalls.ShouldBe( before + 1 );
+
+        // The IStupidTestHelper is an IMonitorTestHelper: it exposes the extension members too.
+        stupid.DropDatabase();
+        stupid.CountOfStupidMethodCalls.ShouldBe( before + 2 );
+    }
+
+    [Test]
+    public void default_database_name_derives_from_the_test_project_name()
+    {
+        // No configuration sets "SqlServer/DatabaseName" in this repository.
+        var options = TestHelper.DefaultDatabaseOptions;
+        options.DatabaseName.ShouldBe( "CKTEST_SqlHelper" );
+        // The configuration is read once: the default options are always the same object.
+        TestHelper.DefaultDatabaseOptions.ShouldBeSameAs( options );
+        TestHelper.GetConnectionString().ShouldBe( TestHelper.GetConnectionString( "CKTEST_SqlHelper" ) );
+    }
+
     /// <summary>
-    /// Calls <see cref="CK.Testing.SqlServer.BackupManager.CreateBackup(string?)(string)"/> on the
-    /// default database (<see cref="CK.Testing.SqlServer.ISqlServerTestHelperCore.DefaultDatabaseOptions"/>).
+    /// Calls <see cref="CK.Testing.SqlServer.BackupManager.CreateBackup(string?)"/> on the
+    /// default database (<see cref="SqlServerTestHelperExtensions.extension(IMonitorTestHelper).DefaultDatabaseOptions"/>).
     /// </summary>
     [Test]
     [Explicit]
@@ -82,8 +111,8 @@ public class DBLayerTests
     }
 
     /// <summary>
-    /// Calls <see cref="CK.Testing.SqlServer.BackupManager.CreateBackup(string?)"/> on the
-    /// default database (<see cref="CK.Testing.SqlServer.ISqlServerTestHelperCore.DefaultDatabaseOptions"/>).
+    /// Calls <see cref="CK.Testing.SqlServer.BackupManager.RestoreBackup(string?, int)"/> on the
+    /// default database (<see cref="SqlServerTestHelperExtensions.extension(IMonitorTestHelper).DefaultDatabaseOptions"/>).
     /// </summary>
     [TestCase( "0 - Most recent one." )]
     [TestCase( "1" )]

@@ -5,6 +5,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-[assembly: SuppressMessage( "Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>", Scope = "member", Target = "~M:CK.Testing.SqlServerTestHelper.DoEnsureDatabase(CK.Testing.SqlServer.ISqlServerDatabaseOptions,System.Boolean)~System.Boolean" )]
-[assembly: SuppressMessage( "Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>", Scope = "member", Target = "~M:CK.Testing.SqlServerTestHelper.DoDrop(System.String,System.Boolean)" )]
-[assembly: SuppressMessage( "Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>", Scope = "member", Target = "~M:CK.Testing.SqlServerTestHelper.DoExecuteScripts(System.Collections.Generic.IEnumerable{System.String},System.String)~System.Boolean" )]
+[assembly: SuppressMessage( "Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>", Scope = "member", Target = "~M:CK.Testing.SqlServerTestHelperExtensions.DoEnsureDatabase(CK.Testing.IMonitorTestHelper,CK.Testing.SqlServer.ISqlServerDatabaseOptions,System.Boolean)~System.Boolean" )]
+[assembly: SuppressMessage( "Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>", Scope = "member", Target = "~M:CK.Testing.SqlServerTestHelperExtensions.DoDrop(CK.Testing.IMonitorTestHelper,System.String,System.Boolean)" )]
+[assembly: SuppressMessage( "Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>", Scope = "member", Target = "~M:CK.Testing.SqlServerTestHelperExtensions.DoExecuteScripts(CK.Testing.IMonitorTestHelper,System.Collections.Generic.IEnumerable{System.String},System.String)~System.Boolean" )]
