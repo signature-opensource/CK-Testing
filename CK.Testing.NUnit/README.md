@@ -61,4 +61,4 @@ consumer.
 
 ## Requires.
 
-- `CK.Testing.Monitoring` (the monitor the groups are written to), NUnit 4.4.0.
+- `CK.Testing` (the monitor test helper: the groups are written to its monitor), NUnit 4.4.0.

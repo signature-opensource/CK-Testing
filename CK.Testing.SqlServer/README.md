@@ -150,7 +150,7 @@ The type of the argument is `SqlServerDatabaseEventArgs`. Its file has another n
 
 ## Requires.
 
-- `CK.Testing.Monitoring` (operations are logged), `Microsoft.Data.SqlClient`.
+- `CK.Testing` (the monitor test helper; operations are logged), `Microsoft.Data.SqlClient`.
 - C# 14 (the default for `net10.0`) in this project. A consumer that sets an older `LangVersion` can call
   the extension methods (`EnsureDatabase`, `ExecuteScripts`, ...), but not the extension properties
   (`MasterConnectionString`, `DefaultDatabaseOptions`, `Backup`): the compiler gives `error CS9058: Feature
