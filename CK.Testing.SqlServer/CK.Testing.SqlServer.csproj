@@ -2,7 +2,6 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Description>Contains Sql Server test helpers.</Description>
-    <LangVersion>9.0</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\CK.Testing.Monitoring\CK.Testing.Monitoring.csproj" />
