@@ -46,8 +46,14 @@ public static class SqlServerTestHelperExtensions
     // Set once by GetMaxCompatibilityLevel. 0 until the server answers.
     static int _maxCompatibilityLevel;
 
-    // The maximal length of a database name (the SQL Server "sysname" type).
-    internal const int MaxDatabaseNameLength = 128;
+    // The maximal length of a database name that "create database" accepts. Measured on SQL Server 2022 (16.0):
+    // 124 characters work, 125 fail with error 407. A name is a "sysname" (128 characters); the probable cause is
+    // the logical name of the log file, "<name>_log", that is also a "sysname".
+    internal const int MaxDatabaseNameLength = 124;
+
+    // When a name and its suffix are too long, at least this number of characters of the suffix is kept:
+    // "_wt_" and 4 characters of the worktree identifier.
+    internal const int MinKeptSuffixLength = 8;
 
     /// <summary>
     /// Fires when a database is created, reset or dropped by <see cref="EnsureDatabase(IMonitorTestHelper, ISqlServerDatabaseOptions?, bool)"/>
@@ -87,7 +93,7 @@ public static class SqlServerTestHelperExtensions
         /// <para>
         /// The database name suffix is then appended, to a configured name too (see <see cref="extension(IMonitorTestHelper).GetScopedDatabaseName(string)"/>).
         /// By default, the suffix is empty in a main checkout. In the linked git worktree "feat-x", the project
-        /// "SqlHelper.Tests" gives "CKTEST_SqlHelper_feat_x".
+        /// "SqlHelper.Tests" gives "CKTEST_SqlHelper_wt_feat_x".
         /// </para>
         /// <para>
         /// The collation is the "SqlServer/Collation" configuration. It defaults to "Latin1_General_100_BIN2".
@@ -113,12 +119,14 @@ public static class SqlServerTestHelperExtensions
         /// <para>
         /// The suffix is the "SqlServer/DatabaseNameSuffix" configuration. An empty configured value disables it.
         /// When it is not configured, the suffix is empty in a main checkout and in a submodule. In a linked git worktree,
-        /// it is '_' followed by the worktree identifier (<see cref="LocalDevSolution.WorktreeId"/>), where each character
-        /// that is not an ASCII letter, an ASCII digit or '_' becomes '_'. For example, the worktree "feat-x" gives "_feat_x".
+        /// it is "_wt_" followed by the worktree identifier (<see cref="LocalDevSolution.WorktreeId"/>), where each character
+        /// that is not an ASCII letter, an ASCII digit or '_' becomes '_'. For example, the worktree "feat-x" gives "_wt_feat_x".
         /// A configured suffix is used as-is: use only letters, digits and '_'.
         /// </para>
         /// <para>
-        /// The result has 128 characters or less (the SQL Server limit): when it is too long, the end of the suffix is removed.
+        /// The result has 124 characters or less (the longest name that "create database" accepts). When it is too long,
+        /// the end of the suffix is removed, but at least 8 characters of the suffix are kept: the end of
+        /// <paramref name="databaseName"/> is then removed too. A non-empty suffix is never lost.
         /// </para>
         /// </summary>
         /// <param name="databaseName">The database name. Must not be null or empty.</param>
@@ -257,7 +265,7 @@ public static class SqlServerTestHelperExtensions
     static Configuration ReadConfiguration( TestHelperConfiguration config, string testProjectName )
     {
         var cSuffix = config.Declare( "SqlServer/DatabaseNameSuffix",
-                                      "The suffix of the default database name (also of a configured 'SqlServer/DatabaseName') and of the GetScopedDatabaseName results. An empty value disables it. When not configured, this is empty in a main checkout and '_<worktree id>' in a linked git worktree.",
+                                      "The suffix of the default database name (also of a configured 'SqlServer/DatabaseName') and of the GetScopedDatabaseName results. An empty value disables it. When not configured, this is empty in a main checkout and '_wt_<worktree id>' in a linked git worktree.",
                                       null );
         var suffix = cSuffix.ConfiguredValue ?? GetWorktreeDatabaseNameSuffix( LocalDevSolution.WorktreeId );
         cSuffix.SetDefaultValue( suffix );
@@ -320,19 +328,28 @@ public static class SqlServerTestHelperExtensions
         return ApplyDatabaseNameSuffix( dbName, suffix );
     }
 
+    // The marker that starts the default suffix of a linked worktree.
+    // A plain '_' is not enough: the project name cleaning also produces '_', and the default collation of
+    // SQL Server ignores the case. The project "CK.DB.Auth.Tests" in the worktree "basic" would give
+    // "CKTEST_CK_DB_Auth_basic", the name of the project "CK.DB.Auth.Basic.Tests" in the main checkout.
+    // A project name does not normally produce "_wt_".
+    internal const string WorktreeSuffixMarker = "_wt_";
+
     // Returns the default suffix. It is empty when there is no worktree identifier (main checkout, submodule).
-    // Else it is '_' followed by the identifier, where each character that is not [A-Za-z0-9_] becomes '_'.
+    // Else it is "_wt_" followed by the identifier, where each character that is not [A-Za-z0-9_] becomes '_'.
     // Git keeps the non-ASCII letters in the identifier and replaces the spaces with '-'.
+    // Known limit: the identifiers "feat-x" and "feat_x" give the same suffix.
     internal static string GetWorktreeDatabaseNameSuffix( string? worktreeId )
     {
         if( String.IsNullOrEmpty( worktreeId ) ) return String.Empty;
-        return String.Create( worktreeId.Length + 1, worktreeId, static ( span, id ) =>
+        return String.Create( WorktreeSuffixMarker.Length + worktreeId.Length, worktreeId, static ( span, id ) =>
         {
-            span[0] = '_';
+            WorktreeSuffixMarker.AsSpan().CopyTo( span );
+            span = span.Slice( WorktreeSuffixMarker.Length );
             for( int i = 0; i < id.Length; ++i )
             {
                 char c = id[i];
-                span[i + 1] = char.IsAsciiLetterOrDigit( c ) || c == '_' ? c : '_';
+                span[i] = char.IsAsciiLetterOrDigit( c ) || c == '_' ? c : '_';
             }
         } );
     }
@@ -345,13 +362,16 @@ public static class SqlServerTestHelperExtensions
     // Use it for a database name or a file path in a string literal of a script.
     internal static string QuoteString( string text ) => "N'" + text.Replace( "'", "''" ) + "'";
 
-    // Appends the suffix. The result has MaxDatabaseNameLength characters or less: the end of the suffix
-    // is removed when necessary. A name that has MaxDatabaseNameLength characters or more is not changed.
+    // Appends the suffix. When the result is longer than MaxDatabaseNameLength, the end of the suffix is removed,
+    // but at least MinKeptSuffixLength characters of the suffix are kept (all of a shorter suffix): the end of the
+    // name is then removed too. A suffix is therefore never lost, and a worktree never gets the name of the main
+    // checkout. With an empty suffix, the name does not change, even when it is too long.
     internal static string ApplyDatabaseNameSuffix( string name, string suffix )
     {
-        int room = MaxDatabaseNameLength - name.Length;
-        if( suffix.Length == 0 || room <= 0 ) return name;
-        return suffix.Length <= room ? name + suffix : name + suffix.Substring( 0, room );
+        if( suffix.Length == 0 ) return name;
+        if( name.Length + suffix.Length <= MaxDatabaseNameLength ) return name + suffix;
+        int keptSuffix = Math.Max( Math.Min( suffix.Length, MinKeptSuffixLength ), MaxDatabaseNameLength - name.Length );
+        return name.Substring( 0, MaxDatabaseNameLength - keptSuffix ) + suffix.Substring( 0, keptSuffix );
     }
 
     // Reads the server version once. A level equal to this maximum is normalized to 0.
@@ -439,17 +459,17 @@ public static class SqlServerTestHelperExtensions
                     helper.Monitor.Info( $"Current is {current}. Must be recreated." );
                     DoDrop( helper, current.DatabaseName, true );
                 }
-                string create = $@"create database {QuoteName( o.DatabaseName )} collate {o.Collation};";
-                if( normalizedLevel != 0 )
-                {
-                    create += Environment.NewLine + "go" + Environment.NewLine;
-                    create += $"alter database {QuoteName( o.DatabaseName )} set compatibility_level = {normalizedLevel}";
-                }
+                // A SqlCommand is one batch: "go" is not a T-SQL statement. The compatibility level is set by a second command.
                 using( var oCon = new SqlConnection( GetConfiguration( helper ).MasterConnectionString ) )
-                using( var cmd = new SqlCommand( create, oCon ) )
+                using( var cmd = new SqlCommand( $"create database {QuoteName( o.DatabaseName )} collate {o.Collation};", oCon ) )
                 {
                     oCon.Open();
                     cmd.ExecuteNonQuery();
+                    if( normalizedLevel != 0 )
+                    {
+                        cmd.CommandText = $"alter database {QuoteName( o.DatabaseName )} set compatibility_level = {normalizedLevel};";
+                        cmd.ExecuteNonQuery();
+                    }
                 }
                 var opt = DoGetDatabaseOptions( helper, o.DatabaseName );
                 Debug.Assert( opt != null );

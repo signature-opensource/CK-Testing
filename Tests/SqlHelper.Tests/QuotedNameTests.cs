@@ -59,6 +59,23 @@ public class QuotedNameTests
         TestHelper.Backup.GetBackups( name ).ShouldBeEmpty();
     }
 
+    [Test]
+    public void the_longest_name_can_be_created_and_dropped()
+    {
+        var name = SqlServerTestHelperExtensions.ApplyDatabaseNameSuffix( "CKTEST_SqlHelper_Long" + new string( 'L', 200 ), "_wt_12345678" );
+        name.Length.ShouldBe( SqlServerTestHelperExtensions.MaxDatabaseNameLength );
+        try
+        {
+            TestHelper.EnsureDatabase( new SqlServerDatabaseOptions( name ), reset: true ).ShouldBeTrue();
+            TestHelper.GetDatabaseOptions( name ).ShouldNotBeNull();
+        }
+        finally
+        {
+            TestHelper.DropDatabase( name );
+        }
+        TestHelper.GetDatabaseOptions( name ).ShouldBeNull();
+    }
+
     static int CountRows( string databaseName )
     {
         using( var c = TestHelper.CreateOpenedConnection( databaseName ) )

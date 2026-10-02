@@ -114,20 +114,25 @@ checkouts drop the database of the other one. A database name suffix prevents th
 The suffix is the `SqlServer/DatabaseNameSuffix` configuration. When it is not configured:
 
 - In a main checkout (and in a submodule), the suffix is empty. Nothing changes.
-- In a linked git worktree, the suffix is `_` followed by the worktree identifier: the `<id>` of the git
+- In a linked git worktree, the suffix is `_wt_` followed by the worktree identifier: the `<id>` of the git
   folder `<repository>/.git/worktrees/<id>` (`LocalDevSolution.WorktreeId`, in `CK.ActivityMonitor`). Each
   character that is not an ASCII letter, an ASCII digit or `_` becomes `_`.
+
+The `_wt_` marker is necessary. With a plain `_`, the project `CK.DB.Auth.Tests` in the worktree `basic` gives
+`CKTEST_CK_DB_Auth_basic`. The default collation of SQL Server ignores the case, so this is the database of the
+project `CK.DB.Auth.Basic.Tests` in the main checkout. A project name does not normally produce `_wt_`.
 
 | Checkout | Worktree identifier | `SqlHelper.Tests` default database |
 |---|---|---|
 | Main checkout | none | `CKTEST_SqlHelper` |
-| Linked worktree | `feat-x` | `CKTEST_SqlHelper_feat_x` |
-| Second linked worktree created as `feat-x` (git gives the identifier `feat-x1`) | `feat-x1` | `CKTEST_SqlHelper_feat_x1` |
-| Linked worktree with `SqlServer/DatabaseName` = `MyDb` | `wt` | `MyDb_wt` |
+| Linked worktree | `feat-x` | `CKTEST_SqlHelper_wt_feat_x` |
+| Second linked worktree created as `feat-x` (git gives the identifier `feat-x1`) | `feat-x1` | `CKTEST_SqlHelper_wt_feat_x1` |
+| Linked worktree with `SqlServer/DatabaseName` = `MyDb` | `wt` | `MyDb_wt_wt` |
 
 The worktree identifier is unique in a repository, but the worktree folder name is not: this is why the
 identifier is used. Git replaces the spaces with `-` and keeps the non-ASCII letters (`Feat-X-é` gives the
-suffix `_Feat_X__`).
+suffix `_wt_Feat_X__`). Known limit: the cleaning can make two identifiers equal. The identifiers `feat-x`
+and `feat_x` both give `_wt_feat_x`, so these two worktrees share their databases.
 
 The suffix is also appended to a configured `SqlServer/DatabaseName`, because a `TestHelper.config` file in
 the repository applies to all its worktrees.
@@ -136,7 +141,7 @@ A test that uses a fixed database name can get the same scope with `GetScopedDat
 
 ```csharp
 var name = TestHelper.GetScopedDatabaseName( "TEST_SetupEngine_Version" );
-// "TEST_SetupEngine_Version" in a main checkout, "TEST_SetupEngine_Version_feat_x" in the worktree "feat-x".
+// "TEST_SetupEngine_Version" in a main checkout, "TEST_SetupEngine_Version_wt_feat_x" in the worktree "feat-x".
 ```
 
 Do not use it for a system database (`master`, `msdb`, `model`, `tempdb`) or for a name that must not exist.
@@ -147,8 +152,12 @@ Rules:
   digits and `_`, and start it with `_` if you want a separator. An empty value disables the suffix, also in a
   worktree. Use a configured suffix for two separate clones of one repository: they are not worktrees, so
   they have the same default name.
-- A database name has 128 characters or less (the SQL Server limit). When the name and the suffix are too
-  long, the end of the suffix is removed. Two long identifiers with the same start can then give the same name.
+- A database name has 124 characters or less. A name is a `sysname` (128 characters), but `create database`
+  fails with 125 characters or more (error 407, measured on SQL Server 2022). When the name and the suffix are
+  too long, the end of the suffix is removed, but at least 8 characters of the suffix stay (`_wt_` and 4
+  characters of the identifier); the end of the name is removed if necessary. So a worktree never gets the
+  name of the main checkout. Two long identifiers with the same start can give the same name. Without a
+  suffix, a name that is too long does not change, and SQL Server rejects it.
 - Each worktree creates its own databases. They stay on the server when the worktree is deleted: nothing
   removes them. Git can give the identifier of a deleted worktree to a new one; the new worktree then finds
   the old database (`EnsureDatabase( reset: true )` creates it again).
@@ -159,7 +168,7 @@ Rules:
 |--------|-------------------|---------|
 | `MasterConnectionString` | `SqlServer/MasterConnectionString` | `Server=.;Database=master;Integrated Security=SSPI;TrustServerCertificate=True` |
 | `DefaultDatabaseOptions.DatabaseName` | `SqlServer/DatabaseName` | `CKTEST_` + the test project name, see above. The suffix is appended. |
-| The suffix of the default name and of `GetScopedDatabaseName` | `SqlServer/DatabaseNameSuffix` | Empty in a main checkout, `_<worktree id>` in a linked git worktree |
+| The suffix of the default name and of `GetScopedDatabaseName` | `SqlServer/DatabaseNameSuffix` | Empty in a main checkout, `_wt_<worktree id>` in a linked git worktree |
 | `DefaultDatabaseOptions.Collation` | `SqlServer/Collation` | `Latin1_General_100_BIN2` |
 | `DefaultDatabaseOptions.CompatibilityLevel` | `SqlServer/CompatibilityLevel` | `0` |
 
@@ -182,6 +191,9 @@ the normalized output of a `SqlConnectionStringBuilder`, not the literal string 
 `CompatibilityLevel` **is** `0` by default, not the server level. `0` means "use the current level of the
 server" when `EnsureDatabase` creates a database. So the value that you read from the options is `0`, and
 the database gets the level of the server.
+
+With another level (for example `130`), `EnsureDatabase` sends two commands: `create database`, then
+`alter database ... set compatibility_level`. `CompatibilityLevelTests` covers this case.
 
 The collation is sent as-is in `create database ... collate {Collation}`. It must be a valid SQL Server
 collation name.

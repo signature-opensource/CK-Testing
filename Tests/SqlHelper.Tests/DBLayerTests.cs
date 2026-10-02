@@ -92,7 +92,7 @@ public class DBLayerTests
     public void default_database_name_derives_from_the_test_project_name()
     {
         // No configuration sets "SqlServer/DatabaseName" or "SqlServer/DatabaseNameSuffix" in this repository.
-        // In a main checkout, the name is "CKTEST_SqlHelper". In a linked git worktree, it ends with "_<worktree id>".
+        // In a main checkout, the name is "CKTEST_SqlHelper". In a linked git worktree, it ends with "_wt_<worktree id>".
         var expected = "CKTEST_SqlHelper" + SqlServerTestHelperExtensions.GetWorktreeDatabaseNameSuffix( LocalDevSolution.WorktreeId );
         TestHelper.Monitor.Info( $"Worktree identifier: '{LocalDevSolution.WorktreeId}', default database name: '{expected}'." );
         if( LocalDevSolution.WorktreeId == null ) expected.ShouldBe( "CKTEST_SqlHelper" );
