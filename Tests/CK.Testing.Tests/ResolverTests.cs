@@ -288,9 +288,14 @@ public class ResolverTests
             }
         }
 
+        // In a git worktree, the SolutionFolder can have any name, but the SolutionName is the name of the main repository.
         b.SolutionName.ShouldBe( "CK-Testing" );
         b.TestProjectName.ShouldBe( "CK.Testing.Tests" );
-        b.ClosestSUTProjectFolder.Path.ShouldEndWith( "CK-Testing/CK.Testing" );
+        b.SolutionFolder.ShouldBe( b.TestProjectFolder.RemoveLastPart().RemoveLastPart(), "This test project is <SolutionFolder>/Tests/CK.Testing.Tests." );
+        File.Exists( b.SolutionFolder.AppendPart( "CK-Testing.slnx" ) ).ShouldBeTrue();
+        var dotGit = b.SolutionFolder.AppendPart( ".git" );
+        (Directory.Exists( dotGit ) || File.Exists( dotGit )).ShouldBeTrue( "A main checkout has a .git directory, a git worktree has a .git file." );
+        b.ClosestSUTProjectFolder.ShouldBe( b.SolutionFolder.AppendPart( "CK.Testing" ) );
 
         var paths = config.DeclareMultiPaths( "Test/MultiPaths", "The description of MultiPaths.", null ).Value.ToList();
         paths.Count.ShouldBe( 6 );

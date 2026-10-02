@@ -110,7 +110,29 @@ parameters, and the resolver satisfies them.
 
 [`IBasicTestHelper`](Basic/IBasicTestHelper.cs) exposes the paths a test needs: `SolutionFolder`,
 `TestProjectFolder`, `ClosestSUTProjectFolder` (the project under test), `BinFolder`, `PathToBin`,
-`LogFolder`, `BuildConfiguration` and `TestProjectName`.
+`LogFolder`, `BuildConfiguration`, `TestProjectName` and `SolutionName`.
+
+`SolutionFolder` is the git working folder that contains the test project. `LocalDevSolution.TryFindSolutionFolder`
+(in the `CK.ActivityMonitor` package) finds it from the `BinFolder`. It is the folder that contains:
+
+- the `.git` directory of a main checkout;
+- the `.git` file of a linked git worktree: `SolutionFolder` is the worktree folder, not the main checkout;
+- the `.git` file of a git submodule: a submodule is its own solution, not the superproject.
+
+A `.git` file that does not point to a git directory is ignored, and the search continues above it.
+
+`SolutionName` is the last part of `SolutionFolder`, except in a linked worktree: it is then the name of the
+main repository, because a worktree folder can have any name. The `{SolutionName}` placeholder of the
+configuration uses the same value.
+
+The initialization also checks that the bin folder is below a `Debug` or `Release` folder and a `bin` folder,
+and that a `Tests` folder is above the test project. This `Tests` folder is usually in the solution. For a
+solution that is in another repository (typically a submodule in the `Tests` folder of its superproject), a
+`Tests` folder between the solution folder and the enclosing repository root is also accepted. If a check
+fails, every test fails with the initialization error.
+
+In a linked worktree, the configuration files are read from the worktree folder down. A `TestHelper.config`
+file at the root of the main checkout does not apply.
 
 `ClosestSUTProjectFolder` is the one worth knowing. It is **configurable** through the
 `TestHelper/ClosestSUTProjectFolder` key, and when it is not configured

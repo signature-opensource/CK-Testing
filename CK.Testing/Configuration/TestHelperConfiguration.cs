@@ -157,7 +157,7 @@ public sealed partial class TestHelperConfiguration
                        .Replace( "{BuildConfiguration}", BasicTestHelper._buildConfiguration )
                        .Replace( "{TestProjectName}", BasicTestHelper._testProjectFolder.LastPart )
                        .Replace( "{PathToBin}", BasicTestHelper._pathToBin )
-                       .Replace( "{SolutionName}", BasicTestHelper._solutionFolder.LastPart );
+                       .Replace( "{SolutionName}", BasicTestHelper._solutionName );
 
         string SubPathNoRoot( string theV, int prefixLen )
         {

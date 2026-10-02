@@ -12,6 +12,9 @@
     <PackageReference Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="CK.Testing.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Fails the build of a consumer that also has the obsolete CK.Testing.Monitoring package (its types are now here). -->
     <None Include="buildTransitive/CK.Testing.targets" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>

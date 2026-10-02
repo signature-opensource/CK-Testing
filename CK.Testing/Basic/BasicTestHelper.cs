@@ -58,6 +58,8 @@ public sealed class BasicTestHelper : StaticBasicTestHelper, IBasicTestHelper
 
     NormalizedPath IBasicTestHelper.SolutionFolder => _solutionFolder;
 
+    string IBasicTestHelper.SolutionName => _solutionName;
+
     NormalizedPath IBasicTestHelper.ClosestSUTProjectFolder => _closestSUTProjectFolder;
 
     NormalizedPath IBasicTestHelper.LogFolder => _logFolder;

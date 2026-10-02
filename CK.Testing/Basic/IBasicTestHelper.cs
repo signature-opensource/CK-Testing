@@ -22,12 +22,27 @@ public interface IBasicTestHelper
     string TestProjectName => TestProjectFolder.LastPart;
 
     /// <summary>
-    /// Gets the name of the Solution (the last part of <see cref="SolutionFolder"/>).
+    /// Gets the name of the Solution. This is usually the last part of <see cref="SolutionFolder"/>.
+    /// In a linked git worktree, this is the name of the main repository: the worktree folder can have any name.
+    /// <para>
+    /// <see cref="BasicTestHelper"/> implements this member with the name found by
+    /// <see cref="LocalDevSolution.TryFindSolutionFolder(string, out NormalizedPath, out string?, out string?)"/>.
+    /// The default implementation of this interface member is only a fallback for other implementations:
+    /// it returns the last part of <see cref="SolutionFolder"/> and does not know about git worktrees.
+    /// </para>
     /// </summary>
     string SolutionName => SolutionFolder.LastPart;
 
     /// <summary>
-    /// Gets the solution folder: where the .git folder is.
+    /// Gets the solution folder: the git working folder that contains the test project.
+    /// This is the folder that contains the ".git" directory of a main checkout, or the ".git" file
+    /// of a linked git worktree or of a git submodule.
+    /// <para>
+    /// In a linked git worktree, this is the worktree folder, not the folder of the main checkout.
+    /// A git submodule is its own solution: this is the submodule folder, not the folder of the superproject.
+    /// The search is <see cref="LocalDevSolution.TryFindSolutionFolder(string, out NormalizedPath, out string?, out string?)"/>,
+    /// from the <see cref="BinFolder"/>.
+    /// </para>
     /// </summary>
     NormalizedPath SolutionFolder { get; }
 
