@@ -1,11 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    CK.Testing.Monitoring is obsolete: its types are now in CK.Testing.
+    This project produces the last version of the package (a "tombstone"): the package contains no assembly
+    and has no dependency. Its buildTransitive targets file fails the build of any project that uses it,
+    with a message that explains the migration.
+  -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Description>Contains Monitoring Test Helper mixin.</Description>
+    <Description>Obsolete: the Monitor Test Helper is now in CK.Testing. This package contains no assembly. It fails the build with a message that explains the migration.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <!-- NU5128: the package has a dependency group for net10.0 but no lib or ref folder. This is intended. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CK.Testing\CK.Testing.csproj" />
-    <PackageReference Include="CK.Monitoring" Version="27.0.0" />
-    <PackageReference Include="CK.ActivityMonitor.SimpleSender" Version="27.0.0" />
+    <None Include="buildTransitive/CK.Testing.Monitoring.targets" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
 </Project>

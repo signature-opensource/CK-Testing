@@ -1,8 +1,14 @@
-Contains Monitoring Test Helper mixin.
+Obsolete: the Monitor Test Helper is now in CK.Testing.
 
-Brings an `IActivityMonitor` to a test, imported through `using static CK.Testing.MonitorTestHelper;`,
-and activates the `GrandOutput` that collects it: text and binary `.ckmon` handlers are added according
-to the test configuration, writing under the test log folder.
+This package contains no assembly and has no dependency. It fails the build of any project that uses it,
+directly or through another package, with the error `CKTESTING002`.
 
-Console output is the one switch a test can flip for itself, either for its whole duration or scoped to
-a `using` block.
+To migrate:
+
+1. Remove the `CK.Testing.Monitoring` package reference.
+2. Reference `CK.Testing` instead. `CK.Testing.NUnit` and `CK.Testing.SqlServer` bring `CK.Testing`.
+3. If another package brings `CK.Testing.Monitoring` transitively, update that package.
+
+The type names and the namespaces do not change: `MonitorTestHelper` and `IMonitorTestHelper` are in
+`CK.Testing`, `IMonitorTestHelperCore` is in `CK.Testing.Monitoring`. Only a reference by assembly name
+changes: `"CK.Testing.MonitorTestHelper, CK.Testing.Monitoring"` becomes `"CK.Testing.MonitorTestHelper, CK.Testing"`.

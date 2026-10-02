@@ -6,7 +6,7 @@
     <PackageReference Include="NUnit" Version="4.6.1" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CK.Testing.Monitoring\CK.Testing.Monitoring.csproj" />
+    <ProjectReference Include="..\CK.Testing\CK.Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="MSBuild/CK.Testing.NUnit.props">

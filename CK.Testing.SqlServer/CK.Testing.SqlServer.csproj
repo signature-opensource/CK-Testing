@@ -4,7 +4,7 @@
     <Description>Contains Sql Server test helpers.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CK.Testing.Monitoring\CK.Testing.Monitoring.csproj" />
+    <ProjectReference Include="..\CK.Testing\CK.Testing.csproj" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.0" />
   </ItemGroup>
 </Project>
