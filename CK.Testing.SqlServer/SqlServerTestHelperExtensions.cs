@@ -36,6 +36,8 @@ public static class SqlServerTestHelperExtensions
 
     // Set once by GetConfiguration.
     static Configuration? _configuration;
+    // Set by GetConfiguration when the read of the configuration fails. Protected by _lock.
+    static Exception? _configurationError;
     // Set once by GetMaxCompatibilityLevel. 0 until the server answers.
     static int _maxCompatibilityLevel;
 
@@ -59,8 +61,10 @@ public static class SqlServerTestHelperExtensions
         /// The value is the normalized output of a <see cref="SqlConnectionStringBuilder"/>, not the literal configured string.
         /// </para>
         /// <para>
-        /// If no configuration file sets it, the environment variable "TestHelper__SqlServer__MasterConnectionString"
-        /// (or "TestHelper__MasterConnectionString") can set it.
+        /// The configuration files are read first, then the environment variables. The environment variable
+        /// "TestHelper__SqlServer__MasterConnectionString" therefore replaces a value of a configuration file.
+        /// The short key "MasterConnectionString" (for example the environment variable "TestHelper__MasterConnectionString")
+        /// is used only when no file and no environment variable sets the full key "SqlServer/MasterConnectionString".
         /// </para>
         /// </summary>
         public string MasterConnectionString => GetConfiguration( helper ).MasterConnectionString;
@@ -113,9 +117,11 @@ public static class SqlServerTestHelperExtensions
         public bool EnsureDatabase( ISqlServerDatabaseOptions? o = null, bool reset = false ) => DoEnsureDatabase( helper, o, reset );
 
         /// <summary>
-        /// Drops a database. Nothing happens if the database does not exist.
+        /// Drops a database. Nothing is dropped if the database does not exist.
         /// <para>
-        /// This fires <see cref="OnDatabaseCreatedOrDropped"/> when the database exists.
+        /// When <paramref name="databaseName"/> is not null, this fires <see cref="OnDatabaseCreatedOrDropped"/> only
+        /// when the database exists. When it is null (the default database), this always fires the event with
+        /// <see cref="SqlServerDatabaseEventArgs.Dropped"/> set to true, even if the database does not exist.
         /// </para>
         /// </summary>
         /// <param name="databaseName">The database name to drop. Defaults to the <see cref="extension(IMonitorTestHelper).DefaultDatabaseOptions"/> name.</param>
@@ -181,8 +187,24 @@ public static class SqlServerTestHelperExtensions
                 c = _configuration;
                 if( c == null )
                 {
-                    c = ReadConfiguration( TestHelperConfiguration.Default, helper.TestProjectName );
-                    Volatile.Write( ref _configuration, c );
+                    // The configuration keys can be declared only once. If the first read fails, a second read
+                    // cannot succeed: it throws an "already initialized" error that hides the real cause.
+                    // The first error is therefore kept, and each call reports it.
+                    var error = _configurationError;
+                    if( error == null )
+                    {
+                        try
+                        {
+                            c = ReadConfiguration( TestHelperConfiguration.Default, helper.TestProjectName );
+                            Volatile.Write( ref _configuration, c );
+                            return c;
+                        }
+                        catch( Exception ex )
+                        {
+                            _configurationError = error = ex;
+                        }
+                    }
+                    throw new InvalidOperationException( $"Invalid SQL Server test configuration: {error.Message}", error );
                 }
             }
         }
@@ -191,6 +213,8 @@ public static class SqlServerTestHelperExtensions
 
     // This is the only place that reads the configuration.
     // A TestHelperConfiguration throws when a key is declared twice: GetConfiguration calls this once.
+    // All the keys are declared before any value is parsed, so that an invalid value does not leave
+    // some keys undeclared.
     static Configuration ReadConfiguration( TestHelperConfiguration config, string testProjectName )
     {
         var cName = config.Declare( "SqlServer/DatabaseName",
@@ -210,11 +234,24 @@ public static class SqlServerTestHelperExtensions
                                         null ).Value;
 
         int compatibilityLevel = 0;
-        compatibilityLevel = config.DeclareInt32( "SqlServer/CompatibilityLevel",
-                                                  "The compatibility level to use. The major of the Sql Server product version multiplied by 10 (it is 130 for Sql Server 2016 which product version is 13.0). Defaults to 0 that uses the current version of the server.",
-                                                  () => compatibilityLevel.ToString() ).Value ?? 0;
+        var cLevel = config.Declare( "SqlServer/CompatibilityLevel",
+                                     "The compatibility level to use. The major of the Sql Server product version multiplied by 10 (it is 130 for Sql Server 2016 which product version is 13.0). Defaults to 0 that uses the current version of the server.",
+                                     () => compatibilityLevel.ToString() );
 
-        var master = new SqlConnectionStringBuilder( masterConnectionString ).ToString();
+        // All the keys are declared. Parse the values.
+        if( cLevel.ConfiguredValue != null && !Int32.TryParse( cLevel.ConfiguredValue, out compatibilityLevel ) )
+        {
+            throw new FormatException( $"The configuration 'SqlServer/CompatibilityLevel' must be an integer. Value: '{cLevel.ConfiguredValue}'." );
+        }
+        string master;
+        try
+        {
+            master = new SqlConnectionStringBuilder( masterConnectionString ).ToString();
+        }
+        catch( Exception ex )
+        {
+            throw new FormatException( $"The configuration 'SqlServer/MasterConnectionString' is not a valid connection string: {ex.Message}", ex );
+        }
         var defaultOptions = new SqlServerDatabaseOptions( dbName )
         {
             Collation = collation,

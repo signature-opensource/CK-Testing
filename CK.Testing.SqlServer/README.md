@@ -111,6 +111,14 @@ The helpers read these keys once per process, from `TestHelperConfiguration.Defa
 for the first time. The values are kept in static fields. A `TestHelperConfiguration` throws if a key is
 declared two times, so no other code must declare these keys.
 
+If a value is invalid (a `SqlServer/CompatibilityLevel` that is not an integer, or a
+`SqlServer/MasterConnectionString` that is not a valid connection string), the first read fails. The helpers
+keep this error: each later call throws an `InvalidOperationException` with the same cause.
+
+The configuration files are read first, then the environment variables. An environment variable such as
+`TestHelper__SqlServer__MasterConnectionString` therefore replaces the value of a file. A short key such as
+`MasterConnectionString` is used only when no file and no environment variable sets the full key.
+
 `TrustServerCertificate=True` in the default is necessary with `Microsoft.Data.SqlClient`: without it, the
 client refuses a local server with a self-signed certificate. The `MasterConnectionString` property returns
 the normalized output of a `SqlConnectionStringBuilder`, not the literal string above.
@@ -140,6 +148,9 @@ if the default database exists: give the name.
 in an extension block. It fires on creation, on reset **and on drop**. The argument has `CreatedOrReset` and
 `Dropped`, so a handler can tell which operation occurred. The sender is the `IMonitorTestHelper` that did the
 operation. A fixture can therefore seed a new database in one place, instead of in each test.
+
+`DropDatabase( name )` fires the event only if the database exists. `DropDatabase()` (the default database)
+always fires it with `Dropped` set to true, even if the database does not exist.
 
 The type of the argument is `SqlServerDatabaseEventArgs`. Its file has another name,
 [SqlServerDatabaseCreatedEventArgs.cs](SqlServerDatabaseCreatedEventArgs.cs).
