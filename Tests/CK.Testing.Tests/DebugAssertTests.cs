@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using Shouldly;
 using System;
+using CK.Monitoring;
 using System.Diagnostics;
 
 namespace CK.Testing.Tests;
@@ -19,8 +20,11 @@ public class DebugAssertTests
         //
         // In "normal" use a TestHelper has been required, this initialization has already been done.
         //
-        StaticBasicTestHelper.EnsureInitialized();
-        Assume.That( BasicTestHelper.TestHelper.BuildConfiguration == "Debug" );
+        StaticTestHelper.EnsureInitialized();
+        Assume.That( StaticTestHelper._buildConfiguration == "Debug" );
+        // Before the TestHelper exists, the SafeTraceListener handles the failure. Once it exists, the MonitorTraceListener
+        // of the GrandOutput replaces it: this depends on the tests that already ran in this process.
+        bool safeListener = Trace.Listeners["CK.Testing.SafeTraceListener"] != null;
         try
         {
             Debug.Assert( 1 == 0, "This should lead to a simple exception, not the death of the process..." );
@@ -30,7 +34,14 @@ public class DebugAssertTests
         {
             // Everything is fine!
             ex.ShouldNotBeNull();
-            ex.Message.ShouldStartWith( "Assertion Failed: " );
+            if( safeListener )
+            {
+                ex.Message.ShouldStartWith( "Assertion Failed: " );
+            }
+            else
+            {
+                ex.ShouldBeOfType<MonitoringFailFastException>();
+            }
         }
     }
 }

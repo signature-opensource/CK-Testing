@@ -11,8 +11,7 @@ public class JsonIdempotenceTests
     [Test]
     public void rewriting_shorter_does_not_show_the_trailing()
     {
-        ITestHelperResolver resolver = TestHelperResolver.Create( new TestHelperConfiguration() );
-        var h = resolver.Resolve<IBasicTestHelper>();
+        var h = MonitorTestHelper.TestHelper;
         h.JsonIdempotenceCheck( "long initial write.", Writer, Reader ).ShouldBe( "long initial write." );
 
         string? text1 = null, text2 = null;

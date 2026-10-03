@@ -31,8 +31,8 @@ members visible. Without it, the compiler cannot find them (`error CS1061: 'IMon
 contain a definition for 'EnsureDatabase'`). A file whose namespace is `CK.Testing` or below it does not
 need the `using CK.Testing;` directive. `using static CK.Testing.SqlServerTestHelperExtensions;` also works.
 
-The members work on any `IMonitorTestHelper`, so they also work on a mixin helper built on it (see the
-`CK.Testing.Stupid` sample in the `Tests` folder).
+Another package can extend the test helper the same way, and react to the static `OnDatabaseCreatedOrDropped`
+event (see the `CK.Testing.Stupid` sample in the `Tests` folder).
 
 Two behaviors that [`DBLayerTests`](../Tests/SqlHelper.Tests/DBLayerTests.cs) pins down. `DropDatabase` is
 idempotent: `dropping_database_multiple_times` calls it twice after a single `EnsureDatabase` and expects no
@@ -46,22 +46,8 @@ var c2 = TestHelper.GetConnectionString( "Toto" );
 c2.ShouldContain( "Toto" );
 ```
 
-The test project is named `SqlHelper.Tests`, so it uses the database `CKTEST_SqlHelper` with no configuration
+The test project is named `SqlHelper.Tests`, so it uses the database `CKTEST_SqlHelper` with no setting
 (in a main checkout; see [the worktree scope](#each-git-worktree-has-its-own-databases) for a linked worktree).
-
-## Migration from `SqlServerTestHelper`.
-
-The previous API (`SqlServerTestHelper`, `ISqlServerTestHelper` and `ISqlServerTestHelperCore`) is removed.
-To migrate a test file:
-
-1. Replace `using static CK.Testing.SqlServerTestHelper;` with `using static CK.Testing.MonitorTestHelper;`.
-2. Add `using CK.Testing;` if the file does not have it and its namespace is not in `CK.Testing`.
-3. Replace a variable or parameter of type `ISqlServerTestHelper` with `IMonitorTestHelper`.
-4. Replace a subscription to `TestHelper.OnDatabaseCreatedOrDropped` with a subscription to the static
-   event `SqlServerTestHelperExtensions.OnDatabaseCreatedOrDropped`.
-
-The member names, the parameters and the call syntax (`TestHelper.EnsureDatabase()`,
-`TestHelper.MasterConnectionString`, `TestHelper.Backup`) do not change.
 
 ## Nothing protects any database name.
 
@@ -87,7 +73,7 @@ Every statement that contains a database name puts it in square brackets, with e
 
 ## The default database name is prefixed, and that is the real safety net.
 
-When `SqlServer/DatabaseName` is not configured, the name derives from the test project name:
+When the `SqlServer/DatabaseName` setting is not set, the name derives from the test project name:
 
 ```csharp
 var n = "CKTEST_" + testProjectName.Replace( '.', '_' ).Replace( '-', '_' );
@@ -97,13 +83,13 @@ if( dbName == n ) dbName = n.Replace( "Tests", String.Empty );
 
 `SqlHelper.Tests` therefore gives **`CKTEST_SqlHelper`**. Two consequences:
 
-- Two test projects can run side by side with no configuration, because each one has its own name.
+- Two test projects can run side by side with no setting, because each one has its own name.
 - A default test database cannot have the name of a real database: the `CKTEST_` prefix prevents it.
-  **If you configure `SqlServer/DatabaseName`, you remove that protection**: the configured value gets no
+  **If you set `SqlServer/DatabaseName`, you remove that protection**: this name gets no
   prefix, and one call drops it.
 
-The database name suffix (see the next section) is then appended to the derived name or to the configured
-name. The method `GetDefaultDatabaseName` in `SqlServerTestHelperExtensions` is the only place that computes
+The database name suffix (see the next section) is then appended to the derived name or to the name
+from the setting. The method `GetDefaultDatabaseName` in `SqlServerTestHelperExtensions` is the only place that computes
 the default name.
 
 ## Each git worktree has its own databases.
@@ -111,7 +97,7 @@ the default name.
 Two checkouts of one repository run the same tests. If they use the same database, parallel tests in two
 checkouts drop the database of the other one. A database name suffix prevents this for linked git worktrees.
 
-The suffix is the `SqlServer/DatabaseNameSuffix` configuration. When it is not configured:
+The suffix is the `SqlServer/DatabaseNameSuffix` setting. When it is not set:
 
 - In a main checkout (and in a submodule), the suffix is empty. Nothing changes.
 - In a linked git worktree, the suffix is `_wt_` followed by the worktree identifier: the `<id>` of the git
@@ -134,8 +120,8 @@ identifier is used. Git replaces the spaces with `-` and keeps the non-ASCII let
 suffix `_wt_Feat_X__`). Known limit: the cleaning can make two identifiers equal. The identifiers `feat-x`
 and `feat_x` both give `_wt_feat_x`, so these two worktrees share their databases.
 
-The suffix is also appended to a configured `SqlServer/DatabaseName`, because a `TestHelper.config` file in
-the repository applies to all its worktrees.
+The suffix is also appended to a `SqlServer/DatabaseName` setting, because an environment variable applies to
+all the worktrees of the machine.
 
 A test that uses a fixed database name can get the same scope with `GetScopedDatabaseName`:
 
@@ -148,9 +134,8 @@ Do not use it for a system database (`master`, `msdb`, `model`, `tempdb`) or for
 
 Rules:
 
-- A configured `SqlServer/DatabaseNameSuffix` replaces the default suffix. It is used as-is: use only letters,
-  digits and `_`, and start it with `_` if you want a separator. An empty value disables the suffix, also in a
-  worktree. Use a configured suffix for two separate clones of one repository: they are not worktrees, so
+- A `SqlServer/DatabaseNameSuffix` setting replaces the default suffix. It is used as-is: use only letters,
+  digits and `_`, and start it with `_` if you want a separator. Use this setting for two separate clones of one repository: they are not worktrees, so
   they have the same default name.
 - A database name has 124 characters or less. A name is a `sysname` (128 characters), but `create database`
   fails with 125 characters or more (error 407, measured on SQL Server 2022). When the name and the suffix are
@@ -162,27 +147,25 @@ Rules:
   removes them. Git can give the identifier of a deleted worktree to a new one; the new worktree then finds
   the old database (`EnsureDatabase( reset: true )` creates it again).
 
-## Configuration.
+## Settings.
 
-| Member | Configuration key | Default |
-|--------|-------------------|---------|
+The values come from settings: environment variables (see `IMonitorTestHelper.GetSetting`). The
+`SqlServer/MasterConnectionString` setting is the `TestHelper__SqlServer__MasterConnectionString` environment variable.
+
+| Member | Setting | Default |
+|--------|---------|---------|
 | `MasterConnectionString` | `SqlServer/MasterConnectionString` | `Server=.;Database=master;Integrated Security=SSPI;TrustServerCertificate=True` |
 | `DefaultDatabaseOptions.DatabaseName` | `SqlServer/DatabaseName` | `CKTEST_` + the test project name, see above. The suffix is appended. |
 | The suffix of the default name and of `GetScopedDatabaseName` | `SqlServer/DatabaseNameSuffix` | Empty in a main checkout, `_wt_<worktree id>` in a linked git worktree |
 | `DefaultDatabaseOptions.Collation` | `SqlServer/Collation` | `Latin1_General_100_BIN2` |
 | `DefaultDatabaseOptions.CompatibilityLevel` | `SqlServer/CompatibilityLevel` | `0` |
 
-The helpers read these keys once per process, from `TestHelperConfiguration.Default`, when a member is used
-for the first time. The values are kept in static fields. A `TestHelperConfiguration` throws if a key is
-declared two times, so no other code must declare these keys.
+The helpers read these settings once per process, when a member is used for the first time. The values are
+kept in static fields.
 
 If a value is invalid (a `SqlServer/CompatibilityLevel` that is not an integer, or a
-`SqlServer/MasterConnectionString` that is not a valid connection string), the first read fails. The helpers
-keep this error: each later call throws an `InvalidOperationException` with the same cause.
-
-The configuration files are read first, then the environment variables. An environment variable such as
-`TestHelper__SqlServer__MasterConnectionString` therefore replaces the value of a file. A short key such as
-`MasterConnectionString` is used only when no file and no environment variable sets the full key.
+`SqlServer/MasterConnectionString` that is not a valid connection string), the read throws an
+`InvalidOperationException`. The next call reads the settings again.
 
 `TrustServerCertificate=True` in the default is necessary with `Microsoft.Data.SqlClient`: without it, the
 client refuses a local server with a self-signed certificate. The `MasterConnectionString` property returns

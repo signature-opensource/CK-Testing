@@ -65,7 +65,7 @@ namespace CK.Testing.SqlServer
         }
 
         /// <summary>
-        /// Gets the backup folder that is <see cref="IBasicTestHelper.TestProjectFolder"/>/DBBackup.
+        /// Gets the backup folder that is <see cref="IMonitorTestHelper.TestProjectFolder"/>/DBBackup.
         /// </summary>
         public NormalizedPath BackupFolder => Helper.TestProjectFolder.AppendPart( "DBBackup" );
 

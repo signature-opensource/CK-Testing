@@ -72,33 +72,31 @@ public class DBLayerTests
     }
 
     [Test]
-    public void OnDatabaseCreatedOrDropped_static_event_reaches_a_mixin_helper()
+    public void OnDatabaseCreatedOrDropped_static_event_reaches_another_extension()
     {
-        // Resolving the IStupidTestHelper creates the StupidTestHelper that subscribes to the static event.
-        var stupid = StupidTestHelper.TestHelper;
-        int before = stupid.CountOfStupidMethodCalls;
+        // The first use of a StupidTestHelperExtensions member runs its static constructor that subscribes to the static event.
+        int before = TestHelper.CountOfStupidMethodCalls;
         var dbName = TestHelper.DefaultDatabaseOptions.DatabaseName;
 
         TestHelper.EnsureDatabase( reset: true ).ShouldBeTrue();
-        stupid.LastDatabaseCreatedOrDroppedName.ShouldBe( dbName );
-        stupid.CountOfStupidMethodCalls.ShouldBe( before + 1 );
+        TestHelper.LastDatabaseCreatedOrDroppedName.ShouldBe( dbName );
+        TestHelper.CountOfStupidMethodCalls.ShouldBe( before + 1 );
 
-        // The IStupidTestHelper is an IMonitorTestHelper: it exposes the extension members too.
-        stupid.DropDatabase();
-        stupid.CountOfStupidMethodCalls.ShouldBe( before + 2 );
+        TestHelper.DropDatabase();
+        TestHelper.CountOfStupidMethodCalls.ShouldBe( before + 2 );
     }
 
     [Test]
     public void default_database_name_derives_from_the_test_project_name()
     {
-        // No configuration sets "SqlServer/DatabaseName" or "SqlServer/DatabaseNameSuffix" in this repository.
+        // The "SqlServer/DatabaseName" and "SqlServer/DatabaseNameSuffix" settings must not be set.
         // In a main checkout, the name is "CKTEST_SqlHelper". In a linked git worktree, it ends with "_wt_<worktree id>".
         var expected = "CKTEST_SqlHelper" + SqlServerTestHelperExtensions.GetWorktreeDatabaseNameSuffix( LocalDevSolution.WorktreeId );
         TestHelper.Monitor.Info( $"Worktree identifier: '{LocalDevSolution.WorktreeId}', default database name: '{expected}'." );
         if( LocalDevSolution.WorktreeId == null ) expected.ShouldBe( "CKTEST_SqlHelper" );
         var options = TestHelper.DefaultDatabaseOptions;
         options.DatabaseName.ShouldBe( expected );
-        // The configuration is read once: the default options are always the same object.
+        // The settings are read once: the default options are always the same object.
         TestHelper.DefaultDatabaseOptions.ShouldBeSameAs( options );
         TestHelper.GetConnectionString().ShouldBe( TestHelper.GetConnectionString( expected ) );
     }
@@ -145,7 +143,7 @@ public class DBLayerTests
 
     /// <summary>
     /// Dumps all the available backup files in <see cref="CK.Testing.SqlServer.BackupManager.BackupFolder"/>
-    /// as information into the <see cref="CK.Testing.Monitoring.IMonitorTestHelperCore.Monitor"/>.
+    /// as information into the <see cref="IMonitorTestHelper.Monitor"/>.
     /// </summary>
     [Test]
     [Explicit]

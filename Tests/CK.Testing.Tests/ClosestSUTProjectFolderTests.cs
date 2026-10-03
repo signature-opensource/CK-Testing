@@ -162,7 +162,7 @@ public class ClosestSUTProjectFolderTests
     static NormalizedPath FindClosestSUTProject( NormalizedPath testProjectFolder, Func<NormalizedPath, bool> exists )
     {
         Debug.Assert( exists( testProjectFolder ) );
-        var candidates = BasicTestHelper.GetClosestSUTProjectCandidatePaths( "X:/S", testProjectFolder ).ToArray();
+        var candidates = StaticTestHelper.GetClosestSUTProjectCandidatePaths( "X:/S", testProjectFolder ).ToArray();
         return candidates.Where( exists ).FirstOrDefault();
     }
 

@@ -1,11 +1,11 @@
 <Project>
   <!--
-    CK.Testing.Monitoring is obsolete: its types are now in CK.Testing.
+    CK.Testing.Monitoring is obsolete: use CK.Testing.
     This package contains no assembly. This target fails the build of any project that uses it,
     directly or through another package.
   -->
   <Target Name="CKTestingMonitoring_ObsoletePackage" AfterTargets="ResolvePackageAssets">
     <Error Code="CKTESTING002"
-           Text="CK.Testing.Monitoring is obsolete: its types are now in CK.Testing. Remove the CK.Testing.Monitoring package reference and reference CK.Testing (or CK.Testing.NUnit) instead, or update the package that brings it transitively. The type names and namespaces do not change." />
+           Text="CK.Testing.Monitoring is obsolete: use CK.Testing. Remove the CK.Testing.Monitoring package reference and reference CK.Testing (or CK.Testing.NUnit) instead, or update the package that brings it transitively. MonitorTestHelper and IMonitorTestHelper are in the CK.Testing namespace." />
   </Target>
 </Project>

@@ -3,7 +3,7 @@ using System;
 namespace CK.Testing;
 
 
-public partial class StaticBasicTestHelper
+static partial class StaticTestHelper
 {
     /// <summary>
     /// This listener is removed by CK.Testing.MonitorTestHelper because the MonitorTraceListener

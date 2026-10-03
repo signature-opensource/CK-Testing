@@ -1,114 +1,72 @@
-# CK.Testing: test helpers resolved, not instantiated
+# CK.Testing: one test helper, extended by extension members
 
-A test helper here is an **interface**, and you ask the resolver for it rather than newing a class up.
-The point of that indirection is composition: a package can add capabilities to *your* test helper
-without you changing anything.
+There is one test helper: [`IMonitorTestHelper`](IMonitorTestHelper.cs). It gives the paths a test needs,
+an `IActivityMonitor` with its log files, the settings of the environment and some utilities.
+[`MonitorTestHelper`](MonitorTestHelper.cs) gives the only instance:
+
+```csharp
+using static CK.Testing.MonitorTestHelper;
+// ...
+TestHelper.Monitor.Info( "..." );
+```
+
+All the CK stack uses this `using static`. `TestHelper` is not a field that you declare.
 
 Assertions use [Shouldly](https://docs.shouldly.org/), extended by
-[`CKShouldlyExtensions`](CKShouldlyExtensions.cs).
-
-## How an interface becomes an instance.
-
-[`MapType`](Resolver/ResolverImpl.cs) tries two things, in this order:
-
-1. **Convention over emission.** For an interface `IXxx` it looks for a class `Xxx` in the same
-   namespace and assembly - and, for an `IXxxCore`, for an `Xxx` walking the namespace up. If such a
-   class is found **and is assignable to the interface, it wins**. A hand-written implementation is
-   therefore used in preference to anything generated.
-2. **Emission, for mixins only.** Failing that, if the interface derives from
-   [`IMixinTestHelper`](IMixinTestHelper.cs), [`MixinType`](Resolver/MixinType.cs) emits an
-   implementation with `System.Reflection.Emit`
-   ([`ILGeneratorExtension`](Resolver/ILGeneratorExtension.cs)).
-
-Anything else throws `Unable to locate an implementation for ...`.
-
-## What a mixin actually forbids.
-
-[`IMixinTestHelper`](IMixinTestHelper.cs) is an empty marker, and its own summary says *"Interfaces
-that extends this interface can not be explicitly implemented."* Read that carefully: it is not a
-compile-time prohibition - C# has no such mechanism, and step 1 above will happily use a class that
-implements a mixin interface.
-
-The rule the code does enforce is a different one:
+[`CKShouldlyExtensions`](CKShouldlyExtensions.cs). String comparisons are ordinal by default (Shouldly
+ignores the case to find a substring, a start or an end, and orders strings with the current culture), and the
+assertions that constrain their subject without fully defining it return it, so that they can be chained:
 
 ```csharp
-if( t.GetMembers().Length > 0 )
-{
-    throw new Exception( $"Interface '{t.FullName}' is a Mixin. It can not have members of its own." );
-}
+"Hello World!".ShouldStartWith( "Hello" ).ShouldEndWith( "!" );
+3712.ShouldBePositive().ShouldBeLessThan( 5000 );
 ```
 
-**A mixin interface must declare nothing of its own.** It is a pure junction of other helper
-interfaces, which is what makes it safe to emit: the generated type only has to forward to the
-implementations of the interfaces being combined. Declare a member on it and resolution fails at
-runtime, not at compile time.
+## A package extends the test helper with extension members.
 
-[`ResolveTargetAttribute`](ResolveTargetAttribute.cs) forwards resolution from one type to another,
-typically from a core interface to its mixin. It is consulted only at the top of a resolution and on
-the mapped class - and no production type in this repository uses it today; the only usages are in the
-tests. [`ITestHelperResolvedCallback`](ITestHelperResolvedCallback.cs) lets a helper run code once
-resolution is complete.
-
-## What you write for a mixin.
-
-Three declarations, and the resolver does the rest. This is the `A` triplet of
-[`ResolverTests`](../Tests/CK.Testing.Tests/ResolverTests.cs), condensed - everything it names comes
-from this package:
+A package that adds capabilities to the test helper writes extension members of `IMonitorTestHelper`, and
+keeps its state in static fields. There is nothing else to write: no interface to implement, no class to
+register. Referencing the package (and having its namespace in scope) is what makes its members appear on
+`TestHelper`. [`CK.Testing.SqlServer`](../CK.Testing.SqlServer/README.md) is built this way, and so is the
+[`CK.Testing.Stupid`](../Tests/CK.Testing.Stupid/StupidTestHelperExtensions.cs) sample:
 
 ```csharp
-// 1. The core interface: what this helper adds to the TestHelper.
-public interface IACore : ITestHelperResolvedCallback
+public static class StupidTestHelperExtensions
 {
-    IBasicTestHelper AToBasicRef { get; }
-    int CallACount { get; }
-    void DoA();
-    event EventHandler ADone;
-    // ... two more members
-}
+    static int _countCall;
 
-// 2. The facade: declares nothing, combines everything.
-public interface IA : IMixinTestHelper, IBasicTestHelper, IACore
-{
-}
+    // An event cannot be declared in an extension block: it is a static event.
+    public static event EventHandler? OnStupidMethodCalled;
 
-// 3. The implementation, of the core interface only.
-public class A : IACore
-{
-    readonly IBasicTestHelper _basic;
-    int _callCount;
-
-    // Other test helpers are resolved and injected.
-    internal A( IBasicTestHelper basic )
+    extension( IMonitorTestHelper helper )
     {
-        _basic = basic;
-    }
+        public int CountOfStupidMethodCalls => _countCall;
 
-    // Explicit implementations, so the facade is what the API exposes.
-    int IACore.CallACount => _callCount;
-    IBasicTestHelper IACore.AToBasicRef => _basic;
-    // ... DoA, ADone, likewise
+        public void StupidMethod()
+        {
+            ++_countCall;
+            OnStupidMethodCalled?.Invoke( null, EventArgs.Empty );
+        }
+    }
 }
 ```
 
-Each of the two resolution rules above handles exactly one of these interfaces:
+Static state is correct because there is only one test helper per process. An extension that needs an
+initialization can do it in the static constructor of its class: it runs before the first use of any of its
+members. An extension that needs a value from the machine reads a [setting](#settings-are-environment-variables).
 
-- `IACore` resolves by **rule 1**. Strip the `I` and the `Core`, look for `A` in the same namespace and
-  assembly, check it is assignable - it is.
-- `IA` resolves by **rule 2**. No class is assignable to it, because `A` implements only the core
-  interface and not `IBasicTestHelper`. So it is emitted, and the emitted type forwards to one
-  implementation per interface it combines.
+The `extension` blocks need C# 14 (the default for `net10.0`). Classic extension methods
+(`this IMonitorTestHelper helper`) work too.
 
-That is why the split into three types is not ceremony: interface 1 is what you write, interface 2 is
-what you consume, and only class 3 has a body. It is also why the `Core` suffix is load-bearing rather
-than stylistic - it drives the name lookup here, and it is read again by
-[`MixinType`](Resolver/MixinType.cs) when it decides which interfaces the emitted type must forward to.
+## The test helper is created once.
 
-The constructor takes an `IBasicTestHelper`: a helper declares what it builds on as constructor
-parameters, and the resolver satisfies them.
+`MonitorTestHelper.TestHelper` creates the helper on its first access. Before this, a static initialization
+computes the paths and checks the folder layout (see below). If it fails, every access to `TestHelper` throws
+the initialization error. If the creation fails (an invalid setting, for example), the next access tries again.
 
 ## Where a test helper knows it is.
 
-[`IBasicTestHelper`](Basic/IBasicTestHelper.cs) exposes the paths a test needs: `SolutionFolder`,
+`IMonitorTestHelper` exposes the paths a test needs: `SolutionFolder`,
 `TestProjectFolder`, `ClosestSUTProjectFolder` (the project under test), `BinFolder`, `PathToBin`,
 `LogFolder`, `BuildConfiguration`, `TestProjectName` and `SolutionName`.
 
@@ -122,8 +80,7 @@ parameters, and the resolver satisfies them.
 A `.git` file that does not point to a git directory is ignored, and the search continues above it.
 
 `SolutionName` is the last part of `SolutionFolder`, except in a linked worktree: it is then the name of the
-main repository, because a worktree folder can have any name. The `{SolutionName}` placeholder of the
-configuration uses the same value.
+main repository, because a worktree folder can have any name.
 
 The initialization also checks that the bin folder is below a `Debug` or `Release` folder and a `bin` folder,
 and that a `Tests` folder is above the test project. This `Tests` folder is usually in the solution. When the
@@ -133,93 +90,52 @@ folder above a main checkout or a linked worktree is accepted. The solution fold
 drive or a UNC share); a folder like `/src` (a Docker `WORKDIR`) is accepted. If a check fails, every test fails
 with the initialization error.
 
-In a linked worktree, the configuration files are read from the worktree folder down. A `TestHelper.config`
-file at the root of the main checkout does not apply.
+`ClosestSUTProjectFolder` is the one worth knowing. For a test project whose name ends with `.Tests`, it is the
+closest folder with the same name without `.Tests`, searched upward as far as the solution folder, siblings
+first. A `<Name>.SUT` folder has the priority, wherever it is. When no folder is found, this is the
+`TestProjectFolder`. So a fixture can reach the real sources without a relative path hard-coded in the test.
 
-`ClosestSUTProjectFolder` is the one worth knowing. It is **configurable** through the
-`TestHelper/ClosestSUTProjectFolder` key, and when it is not configured
-[`BasicTestHelper`](Basic/BasicTestHelper.cs) infers it - but only for a folder whose name ends with
-`.Tests`, giving priority to a `<Name>.SUT` folder - *"The .SUT always has the priority, wherever it
-is"*, searched upward as far as the solution folder, siblings merely tried first - and falling back to
-`TestProjectFolder` when it finds nothing. So a fixture can reach the real sources without a relative path hard-coded in
-the test, and a project that does not follow the `.Tests` convention configures the key instead.
+## Settings are environment variables.
 
-## Configuration is layered, from the solution down.
+`TestHelper.GetSetting( key )` returns the value of the environment variable `TestHelper__` followed by the key,
+where each `/` is replaced by `__`. The key `Monitor/LogLevel` is the environment variable `TestHelper__Monitor__LogLevel`.
+An empty variable is the same as no variable: `GetSetting` returns null.
 
-[`TestHelperConfiguration`](Configuration/TestHelperConfiguration.cs):
+A setting is for a value that depends on the machine (a server, a credential) or that a developer changes
+without changing the code. A test runner reads the environment variables when it starts: after a change,
+restart it (or the IDE).
 
-```
-/// Simple configuration that reads its content from all "*.TestHelper.config" (in lexicographical 
-/// order) and then "TestHelper.config" files in folders from IBasicTestHelper.SolutionFolder 
-/// down to the current execution path.
-/// Once all these files are applied, environment variables that start with "TestHelper::" prefix are applied.
-```
+## The monitor.
 
-Two things the summary above does not say, both read from the code:
+The test helper brings an ActivityMonitor to a test, and sets up the `GrandOutput` that collects its logs.
 
-- **Both prefixes work.** `TestHelper::` and `TestHelper__` are accepted (the second is what you use
-  where `:` is awkward - a CI variable, a container environment), and key normalization maps both
-  separators.
-- The per-folder layering means a developer overrides a solution-wide value by dropping a
-  `TestHelper.config` next to the test project, and nothing needs to know about it.
-
-Keys are declared, not read blindly: `Declare( key, description, ... )` **must be called once and
-only once per key** or it throws `InvalidOperationException`. A description is required. That is what
-makes the configuration self-documenting - and what makes a duplicate declaration a startup failure
-rather than a silent last-one-wins.
-
-## The monitor test helper.
-
-This package also contains the test helper that brings an ActivityMonitor to a test, and sets up the
-`GrandOutput` that collects its logs. Previously, this helper was in the `CK.Testing.Monitoring`
-package. The type names and the namespaces did not change (see
-[the obsolete CK.Testing.Monitoring package](#the-obsolete-cktestingmonitoring-package)).
-
-[`IMonitorTestHelperCore`](Monitoring/IMonitorTestHelperCore.cs) (namespace `CK.Testing.Monitoring`):
-
-| Member | |
+| Member of `IMonitorTestHelper` | |
 |--------|--|
 | `IActivityMonitor Monitor { get; }` | The monitor that a test logs into. |
 | `bool LogToConsole { get; set; }` | The only settable member: a test can send its logs to the console. |
-| `bool LogToCKMon { get; }` | Binary `.ckmon` output, from the configuration. |
-| `bool LogToText { get; }` | Text file output, from the configuration. |
+| `bool LogToCKMon { get; }` | Binary `.ckmon` output, from the settings. |
+| `bool LogToText { get; }` | Text file output, from the settings. |
 | `IDisposable TemporaryEnsureConsoleMonitor()` | Console logs until the returned object is disposed. Dispose restores the previous value. |
 | `Task SuspendAsync( Func<bool,bool> resume, ... )` | Suspends the test until the callback returns true. It works only when a debugger is attached. |
 
-[`IMonitorTestHelper`](Monitoring/IMonitorTestHelper.cs) is the mixin of `IBasicTestHelper` and
-`IMonitorTestHelperCore`. [`MonitorTestHelper`](Monitoring/MonitorTestHelper.cs) (namespace `CK.Testing`)
-is the static entry point. Import it:
-
-```csharp
-using static CK.Testing.MonitorTestHelper;
-// ...
-TestHelper.Monitor.Info( "..." );
-```
-
-All the CK stack uses this `using static`. `TestHelper` is not a field that you declare.
+The other members are utilities: `CleanupFolder` (logged in the monitor), `OnlyOnce` and `JsonIdempotenceCheck`.
 
 ### It owns the GrandOutput of the test run.
 
-`MonitorTestHelper` is not a passive mixin. When it is created, it sets
-`LogFile.RootLogPath = basic.LogFolder`, builds a `GrandOutputConfiguration`, adds the handlers that the
-configuration asks for, and calls `GrandOutput.EnsureActiveDefault`. It does this only once, even if
-more than one `MonitorTestHelper` is created.
+When the test helper is created, it sets `LogFile.RootLogPath` to the `LogFolder`, builds a
+`GrandOutputConfiguration`, adds the handlers that the settings ask for, and calls
+`GrandOutput.EnsureActiveDefault`.
 
-The output paths are fixed. The configuration only selects which handlers exist:
+The output paths are fixed. The settings only select which handlers exist:
 
-| Configuration key | Effect | Where it writes |
-|-------------------|--------|-----------------|
-| `Monitor/LogToCKMon` | Adds a `BinaryFileConfiguration` with gzip compression. Default: true. | `<LogFolder>/CKMon` |
-| `Monitor/LogToText` | Adds a `TextFileConfiguration`. Default: true. | `<LogFolder>/Text` |
-| `Monitor/LogToConsole` | Initial value of the `LogToConsole` property. Default: false. | console |
-| `Monitor/LogLevel` | Sets `ActivityMonitor.DefaultFilter`. Default: `Debug`. | - |
+| Setting | Effect | Where it writes |
+|---------|--------|-----------------|
+| `Monitor/LogToCKMon` | `true` or `false`. Adds a `BinaryFileConfiguration` with gzip compression. Default: true. | `<LogFolder>/CKMon` |
+| `Monitor/LogToText` | `true` or `false`. Adds a `TextFileConfiguration`. Default: true. | `<LogFolder>/Text` |
+| `Monitor/LogToConsole` | `true` or `false`. Initial value of the `LogToConsole` property. Default: false. | console |
+| `Monitor/LogLevel` | A `LogFilter` that sets `ActivityMonitor.DefaultFilter`. Default: `Debug`. | - |
 
-The two file keys accept deprecated aliases, so an old `TestHelper.config` continues to work:
-
-| Key | Deprecated aliases |
-|-----|--------------------|
-| `Monitor/LogToCKMon` | `Monitor/LogToBinFile`, `Monitor/LogToBinFiles` |
-| `Monitor/LogToText` | `Monitor/LogToTextFile`, `Monitor/LogToTextFiles` |
+Another value than `true` or `false` makes the creation of the test helper fail.
 
 Both handlers use a timed-folder mode with a maximum count of current folders (5) and archived folders
 (20). This limit prevents a long test suite from filling the disk.
@@ -227,13 +143,12 @@ Both handlers use a timed-folder mode with a maximum count of current folders (5
 `MonitorTestHelper` activates `GrandOutput.Default`. If a test project also configures the
 `GrandOutput`, the last call to `EnsureActiveDefault` wins.
 
-### The obsolete CK.Testing.Monitoring package.
+### The CK.Testing.Monitoring package check.
 
-The `CK.Testing.Monitoring` package is obsolete. Its last version is a "tombstone": it contains no
-assembly, and it fails the build with the error `CKTESTING002`. See its
-[README](../CK.Testing.Monitoring/README.md) for the migration.
+The `CK.Testing.Monitoring` package is obsolete: its last version contains no assembly, and it fails the build
+with the error `CKTESTING002`. See its [README](../CK.Testing.Monitoring/README.md).
 
-An old version of `CK.Testing.Monitoring` contains the same types as this package. If a project gets
+Other versions of `CK.Testing.Monitoring` contain the same types as this package. If a project gets
 both, the compiler fails with `error CS0433` (the type exists in both assemblies), and only where the
 code uses the type. To give a clear message instead, this package ships
 [`buildTransitive/CK.Testing.targets`](buildTransitive/CK.Testing.targets). This check fails the build
@@ -241,8 +156,8 @@ with the error `CKTESTING001` when any version of `CK.Testing.Monitoring` is in 
 directly or transitively.
 
 To fix the error, remove the `CK.Testing.Monitoring` package reference, or update the package that
-brings it. If you cannot do this (for example, a package that nobody republishes brings the old
-version), set this property in the project to skip the check:
+brings it. If you cannot do this (for example, a package that nobody republishes brings it), set this
+property in the project to skip the check:
 
 ```xml
 <PropertyGroup>
@@ -252,4 +167,4 @@ version), set this property in the project to skip the check:
 
 `ExcludeAssets="all"` on the reference does not remove the package from the restore graph, so it does not
 skip the check. After you skip the check, you must also solve the duplicate types yourself, for example
-with `ExcludeAssets="compile"` on a direct reference to the old package, or with an `extern alias`.
+with `ExcludeAssets="compile"` on a direct reference to the package, or with an `extern alias`.

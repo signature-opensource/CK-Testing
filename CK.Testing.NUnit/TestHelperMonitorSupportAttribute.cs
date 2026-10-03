@@ -11,13 +11,16 @@ namespace CK.Testing.NUnit;
 
 /// <summary>
 /// Makes each NUnit tests log as groups and logs the <see cref="TestResult.Message"/> and <see cref="TestResult.StackTrace"/>
-/// on error into the <see cref="Monitoring.IMonitorTestHelperCore.Monitor"/>.
+/// on error into the <see cref="IMonitorTestHelper.Monitor"/>.
 /// </summary>
 [AttributeUsage( AttributeTargets.Assembly, AllowMultiple = false )]
 public class TestHelperMonitorSupportAttribute : Attribute, ITestAction
 {
     readonly Stack<IDisposableGroup> _groups;
 
+    /// <summary>
+    /// Initializes a new <see cref="TestHelperMonitorSupportAttribute"/>.
+    /// </summary>
     public TestHelperMonitorSupportAttribute()
     {
         _groups = new Stack<IDisposableGroup>();

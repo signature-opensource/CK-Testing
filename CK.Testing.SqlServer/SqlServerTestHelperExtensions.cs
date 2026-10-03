@@ -21,7 +21,7 @@ namespace CK.Testing;
 /// <para>
 /// These operations are dangerous. No database name is protected: a drop is sent for any name,
 /// including a system database. The default database name starts with "CKTEST_" and this prefix
-/// is the only protection for a real database. A configured "SqlServer/DatabaseName" has no prefix.
+/// is the only protection for a real database. A "SqlServer/DatabaseName" setting has no prefix.
 /// </para>
 /// <para>
 /// In a linked git worktree, the default database name ends with a suffix that is specific to the worktree,
@@ -29,20 +29,18 @@ namespace CK.Testing;
 /// See <see cref="extension(IMonitorTestHelper).GetScopedDatabaseName(string)"/>.
 /// </para>
 /// <para>
-/// The configuration is read once per process, from <see cref="TestHelperConfiguration.Default"/>,
+/// The settings (see <see cref="IMonitorTestHelper.GetSetting(string)"/>) are read once per process,
 /// when a member is used for the first time.
 /// </para>
 /// </summary>
 public static class SqlServerTestHelperExtensions
 {
-    static readonly object _lock = new object();
+    static readonly Lock _lock = new Lock();
     static readonly ConditionalWeakTable<IMonitorTestHelper, BackupManager> _backups = new ConditionalWeakTable<IMonitorTestHelper, BackupManager>();
     static readonly Regex _rGo = new Regex( @"^\s*GO(?:\s|$)+", RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled );
 
     // Set once by GetConfiguration.
     static Configuration? _configuration;
-    // Set by GetConfiguration when the read of the configuration fails. Protected by _lock.
-    static Exception? _configurationError;
     // Set once by GetMaxCompatibilityLevel. 0 until the server answers.
     static int _maxCompatibilityLevel;
 
@@ -69,16 +67,11 @@ public static class SqlServerTestHelperExtensions
     extension( IMonitorTestHelper helper )
     {
         /// <summary>
-        /// Gets the connection string to the master database. The "SqlServer/MasterConnectionString" configuration
-        /// gives it. The default is "Server=.;Database=master;Integrated Security=SSPI;TrustServerCertificate=True".
+        /// Gets the connection string to the master database. The "SqlServer/MasterConnectionString" setting
+        /// (the "TestHelper__SqlServer__MasterConnectionString" environment variable) gives it.
+        /// The default is "Server=.;Database=master;Integrated Security=SSPI;TrustServerCertificate=True".
         /// <para>
-        /// The value is the normalized output of a <see cref="SqlConnectionStringBuilder"/>, not the literal configured string.
-        /// </para>
-        /// <para>
-        /// The configuration files are read first, then the environment variables. The environment variable
-        /// "TestHelper__SqlServer__MasterConnectionString" therefore replaces a value of a configuration file.
-        /// The short key "MasterConnectionString" (for example the environment variable "TestHelper__MasterConnectionString")
-        /// is used only when no file and no environment variable sets the full key "SqlServer/MasterConnectionString".
+        /// The value is the normalized output of a <see cref="SqlConnectionStringBuilder"/>, not the literal setting.
         /// </para>
         /// </summary>
         public string MasterConnectionString => GetConfiguration( helper ).MasterConnectionString;
@@ -86,20 +79,20 @@ public static class SqlServerTestHelperExtensions
         /// <summary>
         /// Gets the options of the default test database.
         /// <para>
-        /// The name is the "SqlServer/DatabaseName" configuration. When it is not configured, the name is "CKTEST_"
-        /// followed by the <see cref="IBasicTestHelper.TestProjectName"/>: the '.' and '-' become '_' and the "Tests"
+        /// The name is the "SqlServer/DatabaseName" setting. When it is not set, the name is "CKTEST_"
+        /// followed by the <see cref="IMonitorTestHelper.TestProjectName"/>: the '.' and '-' become '_' and the "Tests"
         /// part is removed. For example, the project "SqlHelper.Tests" gives "CKTEST_SqlHelper".
         /// </para>
         /// <para>
-        /// The database name suffix is then appended, to a configured name too (see <see cref="extension(IMonitorTestHelper).GetScopedDatabaseName(string)"/>).
+        /// The database name suffix is then appended, to a name from the setting too (see <see cref="extension(IMonitorTestHelper).GetScopedDatabaseName(string)"/>).
         /// By default, the suffix is empty in a main checkout. In the linked git worktree "feat-x", the project
         /// "SqlHelper.Tests" gives "CKTEST_SqlHelper_wt_feat_x".
         /// </para>
         /// <para>
-        /// The collation is the "SqlServer/Collation" configuration. It defaults to "Latin1_General_100_BIN2".
+        /// The collation is the "SqlServer/Collation" setting. It defaults to "Latin1_General_100_BIN2".
         /// </para>
         /// <para>
-        /// The compatibility level is the "SqlServer/CompatibilityLevel" configuration. It defaults to 0: a database
+        /// The compatibility level is the "SqlServer/CompatibilityLevel" setting. It defaults to 0: a database
         /// is created with the current level of the server.
         /// </para>
         /// </summary>
@@ -117,11 +110,10 @@ public static class SqlServerTestHelperExtensions
         /// database name suffix. Use it for a fixed name of a database that a test creates, so that the tests of two
         /// checkouts of one repository do not use the same database. Do not use it for a system database.
         /// <para>
-        /// The suffix is the "SqlServer/DatabaseNameSuffix" configuration. An empty configured value disables it.
-        /// When it is not configured, the suffix is empty in a main checkout and in a submodule. In a linked git worktree,
+        /// The suffix is the "SqlServer/DatabaseNameSuffix" setting, used as-is: use only letters, digits and '_'.
+        /// When it is not set, the suffix is empty in a main checkout and in a submodule. In a linked git worktree,
         /// it is "_wt_" followed by the worktree identifier (<see cref="LocalDevSolution.WorktreeId"/>), where each character
         /// that is not an ASCII letter, an ASCII digit or '_' becomes '_'. For example, the worktree "feat-x" gives "_wt_feat_x".
-        /// A configured suffix is used as-is: use only letters, digits and '_'.
         /// </para>
         /// <para>
         /// The result has 124 characters or less (the longest name that "create database" accepts). When it is too long,
@@ -224,7 +216,7 @@ public static class SqlServerTestHelperExtensions
         public string DatabaseNameSuffix { get; }
     }
 
-    static Configuration GetConfiguration( IBasicTestHelper helper )
+    static Configuration GetConfiguration( IMonitorTestHelper helper )
     {
         var c = Volatile.Read( ref _configuration );
         if( c == null )
@@ -234,67 +226,34 @@ public static class SqlServerTestHelperExtensions
                 c = _configuration;
                 if( c == null )
                 {
-                    // The configuration keys can be declared only once. If the first read fails, a second read
-                    // cannot succeed: it throws an "already initialized" error that hides the real cause.
-                    // The first error is therefore kept, and each call reports it.
-                    var error = _configurationError;
-                    if( error == null )
+                    try
                     {
-                        try
-                        {
-                            c = ReadConfiguration( TestHelperConfiguration.Default, helper.TestProjectName );
-                            Volatile.Write( ref _configuration, c );
-                            return c;
-                        }
-                        catch( Exception ex )
-                        {
-                            _configurationError = error = ex;
-                        }
+                        c = ReadConfiguration( helper );
                     }
-                    throw new InvalidOperationException( $"Invalid SQL Server test configuration: {error.Message}", error );
+                    catch( Exception ex )
+                    {
+                        throw new InvalidOperationException( $"Invalid SQL Server test setting: {ex.Message}", ex );
+                    }
+                    Volatile.Write( ref _configuration, c );
                 }
             }
         }
         return c;
     }
 
-    // This is the only place that reads the configuration.
-    // A TestHelperConfiguration throws when a key is declared twice: GetConfiguration calls this once.
-    // All the keys are declared before any value is parsed, so that an invalid value does not leave
-    // some keys undeclared.
-    static Configuration ReadConfiguration( TestHelperConfiguration config, string testProjectName )
+    // This is the only place that reads the settings.
+    static Configuration ReadConfiguration( IMonitorTestHelper helper )
     {
-        var cSuffix = config.Declare( "SqlServer/DatabaseNameSuffix",
-                                      "The suffix of the default database name (also of a configured 'SqlServer/DatabaseName') and of the GetScopedDatabaseName results. An empty value disables it. When not configured, this is empty in a main checkout and '_wt_<worktree id>' in a linked git worktree.",
-                                      null );
-        var suffix = cSuffix.ConfiguredValue ?? GetWorktreeDatabaseNameSuffix( LocalDevSolution.WorktreeId );
-        cSuffix.SetDefaultValue( suffix );
-
-        var cName = config.Declare( "SqlServer/DatabaseName",
-                                    $"The default database name. When not configured this is built based on the project name '{testProjectName}'. The 'SqlServer/DatabaseNameSuffix' is appended to it.",
-                                    null );
-        var dbName = GetDefaultDatabaseName( cName.ConfiguredValue, testProjectName, suffix );
-        cName.SetDefaultValue( dbName );
-
-        var masterConnectionString = config.Declare( "SqlServer/MasterConnectionString",
-                                                     "Server=.;Database=master;Integrated Security=SSPI;TrustServerCertificate=True",
-                                                     "The connection string to the master database of the Sql Server that will be used by the tests.",
-                                                     null ).Value;
-
-        var collation = config.Declare( "SqlServer/Collation",
-                                        "Latin1_General_100_BIN2",
-                                        "The expected collation of the Sql Server. The EnsureDatabase method drops and recreates a database if the collation differ.",
-                                        null ).Value;
-
+        var suffix = helper.GetSetting( "SqlServer/DatabaseNameSuffix" ) ?? GetWorktreeDatabaseNameSuffix( LocalDevSolution.WorktreeId );
+        var dbName = GetDefaultDatabaseName( helper.GetSetting( "SqlServer/DatabaseName" ), helper.TestProjectName, suffix );
+        var masterConnectionString = helper.GetSetting( "SqlServer/MasterConnectionString" )
+                                     ?? "Server=.;Database=master;Integrated Security=SSPI;TrustServerCertificate=True";
+        var collation = helper.GetSetting( "SqlServer/Collation" ) ?? "Latin1_General_100_BIN2";
         int compatibilityLevel = 0;
-        var cLevel = config.Declare( "SqlServer/CompatibilityLevel",
-                                     "The compatibility level to use. The major of the Sql Server product version multiplied by 10 (it is 130 for Sql Server 2016 which product version is 13.0). Defaults to 0 that uses the current version of the server.",
-                                     () => compatibilityLevel.ToString() );
-
-        // All the keys are declared. Parse the values.
-        if( cLevel.ConfiguredValue != null && !Int32.TryParse( cLevel.ConfiguredValue, out compatibilityLevel ) )
+        var level = helper.GetSetting( "SqlServer/CompatibilityLevel" );
+        if( level != null && !Int32.TryParse( level, out compatibilityLevel ) )
         {
-            throw new FormatException( $"The configuration 'SqlServer/CompatibilityLevel' must be an integer. Value: '{cLevel.ConfiguredValue}'." );
+            throw new FormatException( $"The setting 'SqlServer/CompatibilityLevel' must be an integer. Value: '{level}'." );
         }
         string master;
         try
@@ -303,7 +262,7 @@ public static class SqlServerTestHelperExtensions
         }
         catch( Exception ex )
         {
-            throw new FormatException( $"The configuration 'SqlServer/MasterConnectionString' is not a valid connection string: {ex.Message}", ex );
+            throw new FormatException( $"The setting 'SqlServer/MasterConnectionString' is not a valid connection string: {ex.Message}", ex );
         }
         var defaultOptions = new SqlServerDatabaseOptions( dbName )
         {
@@ -314,11 +273,11 @@ public static class SqlServerTestHelperExtensions
     }
 
     // This is the only place that computes the default database name.
-    // The name is the configured name, else it derives from the test project name.
+    // The name is the name from the setting, else it derives from the test project name.
     // The suffix is appended in both cases.
-    internal static string GetDefaultDatabaseName( string? configuredName, string testProjectName, string suffix )
+    internal static string GetDefaultDatabaseName( string? settingName, string testProjectName, string suffix )
     {
-        var dbName = configuredName;
+        var dbName = settingName;
         if( dbName == null )
         {
             var n = "CKTEST_" + testProjectName.Replace( '.', '_' ).Replace( '-', '_' );

@@ -6,8 +6,8 @@ test does not pass on comparisons the production schema would reject.
 
 These operations are dangerous and no database name is protected: the drop is issued for whatever name
 it is given. The `CKTEST_` prefix of the derived default is what keeps a test from reaching a real
-database - configuring the name explicitly gives that up.
+database - setting the name explicitly gives that up.
 
 In a linked git worktree, the default database name ends with `_wt_<worktree id>`, so that two checkouts of
 one repository do not share a test database. `GetScopedDatabaseName` gives the same scope to a fixed name.
-The `SqlServer/DatabaseNameSuffix` configuration changes or disables this suffix.
+The `SqlServer/DatabaseNameSuffix` setting (an environment variable) replaces this suffix.

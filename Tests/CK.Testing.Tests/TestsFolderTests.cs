@@ -36,7 +36,7 @@ public class TestsFolderTests
         var solution = CreateMainCheckout( _root.AppendPart( "Repo" ) );
         var testProject = CreateFolder( solution.AppendPart( "Tests" ).AppendPart( "P.Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, solution ).ShouldBe( solution.AppendPart( "Tests" ) );
+        StaticTestHelper.FindTestsFolder( testProject, solution ).ShouldBe( solution.AppendPart( "Tests" ) );
     }
 
     [Test]
@@ -45,7 +45,7 @@ public class TestsFolderTests
         var solution = CreateMainCheckout( _root.AppendPart( "Repo" ) );
         var testProject = CreateFolder( solution.AppendPart( "Tests" ).AppendPart( "Group" ).AppendPart( "Tests" ).AppendPart( "P.Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, solution )
+        StaticTestHelper.FindTestsFolder( testProject, solution )
             .ShouldBe( solution.AppendPart( "Tests" ).AppendPart( "Group" ).AppendPart( "Tests" ) );
     }
 
@@ -55,7 +55,7 @@ public class TestsFolderTests
         var solution = CreateMainCheckout( _root.AppendPart( "Tests" ) );
         var testProject = CreateFolder( solution.AppendPart( "Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, solution ).ShouldBeNull();
+        StaticTestHelper.FindTestsFolder( testProject, solution ).ShouldBeNull();
     }
 
     [Test]
@@ -66,7 +66,7 @@ public class TestsFolderTests
         var solution = CreateMainCheckout( outer.AppendPart( "Tests" ).AppendPart( "Repo" ) );
         var testProject = CreateFolder( solution.AppendPart( "P.Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, solution ).ShouldBeNull();
+        StaticTestHelper.FindTestsFolder( testProject, solution ).ShouldBeNull();
     }
 
     [Test]
@@ -77,7 +77,7 @@ public class TestsFolderTests
         var worktree = CreateWorktree( main, "wt", main.AppendPart( "Tests" ).AppendPart( "wt" ) );
         var testProject = CreateFolder( worktree.AppendPart( "P.Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, worktree ).ShouldBeNull();
+        StaticTestHelper.FindTestsFolder( testProject, worktree ).ShouldBeNull();
     }
 
     [Test]
@@ -87,7 +87,7 @@ public class TestsFolderTests
         var sub = CreateSubmodule( super, "Sub", super.AppendPart( "Tests" ).AppendPart( "Sub" ) );
         var testProject = CreateFolder( sub.AppendPart( "Sub.Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, sub ).ShouldBe( super.AppendPart( "Tests" ) );
+        StaticTestHelper.FindTestsFolder( testProject, sub ).ShouldBe( super.AppendPart( "Tests" ) );
     }
 
     [Test]
@@ -99,7 +99,7 @@ public class TestsFolderTests
         var b = CreateSubmodule( a, "B", a.AppendPart( "B" ) );
         var testProject = CreateFolder( b.AppendPart( "B.Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, b ).ShouldBe( super.AppendPart( "Tests" ) );
+        StaticTestHelper.FindTestsFolder( testProject, b ).ShouldBe( super.AppendPart( "Tests" ) );
     }
 
     [Test]
@@ -111,7 +111,7 @@ public class TestsFolderTests
         var sub = CreateSubmodule( super, "Sub", stray.AppendPart( "Sub" ) );
         var testProject = CreateFolder( sub.AppendPart( "Sub.Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, sub ).ShouldBe( super.AppendPart( "Tests" ) );
+        StaticTestHelper.FindTestsFolder( testProject, sub ).ShouldBe( super.AppendPart( "Tests" ) );
     }
 
     [Test]
@@ -122,7 +122,7 @@ public class TestsFolderTests
         var sub = CreateSubmodule( super, "Sub", super.AppendPart( "Libs" ).AppendPart( "Sub" ) );
         var testProject = CreateFolder( sub.AppendPart( "Sub.Tests" ) );
 
-        StaticBasicTestHelper.FindTestsFolder( testProject, sub ).ShouldBeNull();
+        StaticTestHelper.FindTestsFolder( testProject, sub ).ShouldBeNull();
     }
 
     [TestCase( "", true )]
@@ -135,7 +135,7 @@ public class TestsFolderTests
     [TestCase( "//server/share/src", false )]
     public void IsRootFolder_accepts_only_a_real_root( string path, bool expected )
     {
-        StaticBasicTestHelper.IsRootFolder( path ).ShouldBe( expected );
+        StaticTestHelper.IsRootFolder( path ).ShouldBe( expected );
     }
 
     static NormalizedPath CreateFolder( NormalizedPath folder )

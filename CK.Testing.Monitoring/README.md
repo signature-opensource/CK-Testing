@@ -1,38 +1,28 @@
 # CK.Testing.Monitoring (obsolete)
 
-This package is obsolete. Its types are now in [CK.Testing](../CK.Testing/README.md).
+This package is obsolete: use [CK.Testing](../CK.Testing/README.md).
 
-The last version of this package is a "tombstone":
+This version of the package is a "tombstone":
 
 - It contains no assembly and has no dependency.
 - It ships [`buildTransitive/CK.Testing.Monitoring.targets`](buildTransitive/CK.Testing.Monitoring.targets).
   This file fails the build of any project that uses the package, directly or through another package,
   with the error `CKTESTING002`.
 
-## Migration
+## What to do
 
 1. Remove the `CK.Testing.Monitoring` package reference.
 2. Reference `CK.Testing` instead. If the project references `CK.Testing.NUnit` or `CK.Testing.SqlServer`,
    you need nothing more: they bring `CK.Testing`.
 3. If another package brings `CK.Testing.Monitoring` transitively, update that package.
 
-You do not change code. The type names and the namespaces stay the same:
+`MonitorTestHelper` and `IMonitorTestHelper` are in the `CK.Testing` namespace of the `CK.Testing` assembly:
+`using static CK.Testing.MonitorTestHelper;` gives the `TestHelper`. A reference to the code by its assembly
+name is `"CK.Testing.MonitorTestHelper, CK.Testing"`.
 
-| Type | Namespace |
-|------|-----------|
-| `MonitorTestHelper` | `CK.Testing` |
-| `IMonitorTestHelper` | `CK.Testing` |
-| `IMonitorTestHelperCore` | `CK.Testing.Monitoring` |
+## A project that also has another version
 
-`using static CK.Testing.MonitorTestHelper;` continues to work, and so do the configuration keys
-(`Monitor/LogToCKMon`, `Monitor/LogToText`, `Monitor/LogLevel`, `Monitor/LogToConsole`).
-
-A reference to the code by its assembly name must change. For example, the string
-`"CK.Testing.MonitorTestHelper, CK.Testing.Monitoring"` becomes `"CK.Testing.MonitorTestHelper, CK.Testing"`.
-
-## A project that also has an old version
-
-An old version of `CK.Testing.Monitoring` contains the same types as `CK.Testing`, and causes
-`error CS0433` (the type exists in both assemblies). To give a clear message instead, `CK.Testing` checks
-that no version of `CK.Testing.Monitoring` is in the restore graph. This check fails the build with the
-error `CKTESTING001`. See [CK.Testing](../CK.Testing/README.md#the-obsolete-cktestingmonitoring-package).
+Other versions of `CK.Testing.Monitoring` contain types of `CK.Testing`, and cause `error CS0433` (the type
+exists in both assemblies). To give a clear message instead, `CK.Testing` checks that no version of
+`CK.Testing.Monitoring` is in the restore graph. This check fails the build with the error `CKTESTING001`.
+See [CK.Testing](../CK.Testing/README.md#the-cktestingmonitoring-package-check).

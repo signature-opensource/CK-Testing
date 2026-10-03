@@ -8,6 +8,6 @@
     </ItemGroup>
     <Error Condition="'@(_CKTestingObsoleteMonitoringPackage)' != ''"
            Code="CKTESTING001"
-           Text="CK.Testing.Monitoring is obsolete: its types are now in CK.Testing. Remove the CK.Testing.Monitoring package reference, or update the package that brings it transitively. Set the property CKTestingAllowObsoleteMonitoringPackage to true to skip this check." />
+           Text="CK.Testing.Monitoring is obsolete: use CK.Testing. Remove the CK.Testing.Monitoring package reference, or update the package that brings it transitively. Set the property CKTestingAllowObsoleteMonitoringPackage to true to skip this check." />
   </Target>
 </Project>

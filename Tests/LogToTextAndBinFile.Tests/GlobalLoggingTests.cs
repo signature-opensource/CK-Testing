@@ -2,6 +2,7 @@ using System;
 using NUnit.Framework;
 using CK.Core;
 using CK.Monitoring;
+using CK.Testing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -22,7 +23,7 @@ public class GlobalLoggingTests
         var secret = Guid.NewGuid().ToString();
         var binSecret = Encoding.UTF8.GetBytes( secret );
 
-        TestHelper.Monitor.Info( $"This will appear in ckmon, text files and the console: {secret}" );
+        TestHelper.Monitor.Info( $"This will appear in ckmon and text files: {secret}" );
         Throw.DebugAssert( GrandOutput.Default != null );
         await GrandOutput.Default.DisposeAsync();
 
@@ -37,7 +38,7 @@ public class GlobalLoggingTests
             logFiles.Any( f => f.FileName == "LastRun.log" ).ShouldBeTrue();
         }
 
-        // ckmon files are now gzipped by default.
+        // ckmon files are gzipped.
         int count = 0;
         foreach( var fName in Directory.EnumerateFiles( TestHelper.LogFolder, "*.ckmon", SearchOption.AllDirectories ) )
         {
@@ -60,15 +61,15 @@ public class GlobalLoggingTests
     public void TestHelper_properties_are_available()
     {
         var w = new StringWriter();
-        DumpProperties( w, "> ", TestHelper );
+        DumpProperties( w, "> ", typeof( IMonitorTestHelper ), TestHelper );
         var text = w.ToString();
         text.ShouldContain( "LogToCKMon = True" );
         TestHelper.Monitor.Info( text );
     }
 
-    static void DumpProperties( TextWriter w, string prefix, object o )
+    static void DumpProperties( TextWriter w, string prefix, Type type, object o )
     {
-        foreach( var p in o.GetType().GetProperties() )
+        foreach( var p in type.GetProperties() )
         {
             if( p.PropertyType.IsValueType || p.PropertyType == typeof( string ) )
             {

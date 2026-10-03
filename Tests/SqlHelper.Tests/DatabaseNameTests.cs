@@ -25,7 +25,7 @@ public class DatabaseNameTests
     [Test]
     public void the_worktree_marker_prevents_a_collision_with_another_project_of_the_main_checkout()
     {
-        // With a plain '_' separator, "CK.DB.Auth.Tests" in the worktree "basic" gave "CKTEST_CK_DB_Auth_basic":
+        // With a plain '_' separator, "CK.DB.Auth.Tests" in the worktree "basic" would give "CKTEST_CK_DB_Auth_basic":
         // with a case insensitive collation, this is the database of "CK.DB.Auth.Basic.Tests" in the main checkout.
         var inWorktree = SqlServerTestHelperExtensions.GetDefaultDatabaseName( null, "CK.DB.Auth.Tests", SqlServerTestHelperExtensions.GetWorktreeDatabaseNameSuffix( "basic" ) );
         var inMain = SqlServerTestHelperExtensions.GetDefaultDatabaseName( null, "CK.DB.Auth.Basic.Tests", "" );
@@ -53,7 +53,7 @@ public class DatabaseNameTests
 
     [TestCase( "", "MyDb" )]
     [TestCase( "_wt_a", "MyDb_wt_a" )]
-    public void a_configured_name_also_ends_with_the_suffix( string suffix, string expected )
+    public void a_name_from_the_setting_also_ends_with_the_suffix( string suffix, string expected )
     {
         SqlServerTestHelperExtensions.GetDefaultDatabaseName( "MyDb", "SqlHelper.Tests", suffix ).ShouldBe( expected );
     }
