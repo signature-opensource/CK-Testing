@@ -4,9 +4,9 @@
     <Description>Contains the Monitor Test Helper. Shouldly is used for assertions.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CK.Core" Version="26.0.0" />
-    <PackageReference Include="CK.Monitoring" Version="27.1.0-mike.0.ci.3" />
-    <PackageReference Include="CK.ActivityMonitor.SimpleSender" Version="27.1.0-mike.0.ci.3" />
+    <PackageReference Include="CK.Core" Version="26.0.1" />
+    <PackageReference Include="CK.Monitoring" Version="27.1.0" />
+    <PackageReference Include="CK.ActivityMonitor.SimpleSender" Version="27.1.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
     <PackageReference Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
