@@ -7,8 +7,8 @@
     <PackageReference Include="CK.Core" Version="26.0.1" />
     <PackageReference Include="CK.Monitoring" Version="27.1.0" />
     <PackageReference Include="CK.ActivityMonitor.SimpleSender" Version="27.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="11.0.0-rc.1.26425.128" />
-    <PackageReference Include="Shouldly" Version="5.0.0-preview.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.12" />
+    <PackageReference Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="CK.Testing.Tests" />
