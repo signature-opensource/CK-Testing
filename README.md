@@ -2,8 +2,7 @@
 
 [![Licence](https://img.shields.io/github/license/signature-opensource/CK-Testing.svg)](LICENSE)
 
-Test helpers for the CK stack. There is one test helper, `IMonitorTestHelper`: packages extend it with
-extension members, so referencing a package is what extends the test helper of a project.
+Test helpers for the CK stack.
 
 | Package | Description | Latest stable |
 |---------|-------------|---------------|

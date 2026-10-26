@@ -27,8 +27,9 @@ assertions that constrain their subject without fully defining it return it, so 
 A package that adds capabilities to the test helper writes extension members of `IMonitorTestHelper`, and
 keeps its state in static fields. There is nothing else to write: no interface to implement, no class to
 register. Referencing the package (and having its namespace in scope) is what makes its members appear on
-`TestHelper`. [`CK.Testing.SqlServer`](../CK.Testing.SqlServer/README.md) is built this way, and so is the
-[`CK.Testing.Stupid`](../Tests/CK.Testing.Stupid/StupidTestHelperExtensions.cs) sample:
+`TestHelper`. The [`CK.Testing.Stupid`](../Tests/CK.Testing.Stupid/StupidTestHelperExtensions.cs) sample
+shows the pattern (for an example in a real package, see
+[CK.Testing.SqlServer](../CK.Testing.SqlServer/README.md)):
 
 ```csharp
 public static class StupidTestHelperExtensions
