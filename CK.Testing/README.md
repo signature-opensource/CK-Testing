@@ -146,7 +146,7 @@ Both handlers use a timed-folder mode with a maximum count of current folders (5
 ### The CK.Testing.Monitoring package check.
 
 The `CK.Testing.Monitoring` package is obsolete: its last version contains no assembly, and it fails the build
-with the error `CKTESTING002`. See its [README](../CK.Testing.Monitoring/README.md).
+with the error `CKTESTING002`. See its page on [nuget.org](https://www.nuget.org/packages/CK.Testing.Monitoring/).
 
 Other versions of `CK.Testing.Monitoring` contain the same types as this package. If a project gets
 both, the compiler fails with `error CS0433` (the type exists in both assemblies), and only where the
