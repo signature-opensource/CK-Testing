@@ -11,7 +11,6 @@
     <Project Path="Tests/LogToTextAndBinFile.Tests/LogToTextAndBinFile.Tests.csproj" />
     <Project Path="Tests/SqlHelper.Tests/SqlHelper.Tests.csproj" />
   </Folder>
-  <Project Path="CK.Testing.Monitoring/CK.Testing.Monitoring.csproj" />
   <Project Path="CK.Testing.NUnit/CK.Testing.NUnit.csproj" />
   <Project Path="CK.Testing.SqlServer/CK.Testing.SqlServer.csproj" />
   <Project Path="CK.Testing/CK.Testing.csproj" />
