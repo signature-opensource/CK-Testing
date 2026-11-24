@@ -23,6 +23,11 @@ using System.Threading.Tasks;
 ///     Strings are compared with <see cref="StringComparison.Ordinal"/> by default: Shouldly ignores the case to find a
 ///     substring, a start or an end, and orders strings with the current culture.
 ///     </item>
+///     <item>
+///     <c>ShouldBe</c>, <c>ShouldNotBe</c>, <c>ShouldContain</c> and <c>ShouldNotContain</c> on strings ignore the newline style
+///     (<c>\r\n</c>, <c>\r</c> and <c>\n</c> are the same newline): a multi-line literal has the newlines of its source
+///     file. Specifying a <see cref="StringComparison"/> compares the newlines too.
+///     </item>
 ///     <item>A regular expression is <see cref="RegexOptions.Singleline"/> by default and accepts other options.</item>
 ///     <item>
 ///     An assertion returns its subject, so that assertions can be chained. An assertion that fully defines its subject
@@ -40,16 +45,20 @@ public static class CKShouldlyGlobalOverrideExtensions
     #region Strings: ordinal comparison and regular expressions.
 
     /// <summary>
-    /// Explicit overload that avoid to consider a string as a enumerable of characters and support
-    /// default <see cref="StringComparison.Ordinal"/>.
+    /// Explicit overload that avoid to consider a string as a enumerable of characters. The comparison is
+    /// <see cref="StringComparison.Ordinal"/> and ignores the newline style (see <see cref="ShouldBe(string?, string?, string?)"/>):
+    /// specify the <see cref="StringComparison"/> to compare the newlines too.
     /// </summary>
     /// <param name="actual">This string.</param>
     /// <param name="expected">The substring that must be found.</param>
     /// <param name="customMessage">Optional message.</param>
     /// <returns>This string.</returns>
+    [MethodImpl( MethodImplOptions.NoInlining )]
     public static string ShouldContain( this string actual, ReadOnlySpan<char> expected, string? customMessage = null )
     {
-        return ShouldContain( actual, expected, StringComparison.Ordinal, customMessage );
+        if( !ContainsIgnoringNewLineStyle( actual, expected ) )
+            throw new ShouldAssertException( new ExpectedActualShouldlyMessage( new string( expected ), actual, customMessage ).ToString() );
+        return actual;
     }
 
     /// <summary>
@@ -70,19 +79,35 @@ public static class CKShouldlyGlobalOverrideExtensions
     }
 
     /// <summary>
-    /// Explicit overload that avoid to consider a string as a enumerable of characters and support
-    /// default <see cref="StringComparison.Ordinal"/>.
+    /// Explicit overload that avoid to consider a string as a enumerable of characters. The comparison is
+    /// <see cref="StringComparison.Ordinal"/> and ignores the newline style (see <see cref="ShouldBe(string?, string?, string?)"/>):
+    /// specify the <see cref="StringComparison"/> to compare the newlines too.
     /// </summary>
     /// <param name="actual">This string.</param>
     /// <param name="expected">The substring that must not be found.</param>
     /// <param name="customMessage">Optional message.</param>
     /// <returns>This string.</returns>
+    [MethodImpl( MethodImplOptions.NoInlining )]
     public static string ShouldNotContain( this string actual,
                                            ReadOnlySpan<char> expected,
                                            string? customMessage = null )
     {
-        return ShouldNotContain( actual, expected, StringComparison.Ordinal, customMessage );
+        if( ContainsIgnoringNewLineStyle( actual, expected ) )
+            throw new ShouldAssertException( new ExpectedActualShouldlyMessage( new string( expected ), actual, customMessage ).ToString() );
+        return actual;
     }
+
+    // The newlines are the ones of Shouldly's StringCompareShould.IgnoreLineEndings: "\r\n", "\r" and "\n".
+    static bool ContainsIgnoringNewLineStyle( string? actual, ReadOnlySpan<char> expected )
+    {
+        return ToLF( actual ?? "" ).AsSpan().Contains( ToLF( expected.ToString() ), StringComparison.Ordinal );
+    }
+
+    static string ToLF( string s ) => s.Replace( "\r\n", "\n" ).Replace( '\r', '\n' );
+
+    // Shouldly's string assertion shows where two texts differ, but only the first 5000 characters of each one:
+    // longer texts must fail through the generic assertion, that shows them in full.
+    static bool IsClippedByShouldly( string? actual, string? expected ) => actual?.Length > 5000 || expected?.Length > 5000;
 
     /// <summary>
     /// Explicit overload that avoid to consider a string as a enumerable of characters and support
@@ -633,6 +658,75 @@ public static class CKShouldlyGlobalOverrideExtensions
 
     #region Equality: chaining.
 
+    /// <summary>
+    /// <c>ShouldBe</c> for strings: the newline style is ignored (<c>\r\n</c>, <c>\r</c> and <c>\n</c> are the same
+    /// newline), any other difference fails. Returns this string.
+    /// <para>
+    /// A multi-line literal has the newlines of its source file and a text produced at run time usually has
+    /// <see cref="Environment.NewLine"/>: they must be comparable on every platform. To compare the newlines too,
+    /// specify the comparison: <c>actual.ShouldBe( expected, StringComparison.Ordinal )</c>.
+    /// </para>
+    /// <para>
+    /// This applies to a call that the compiler sees as <c>string.ShouldBe( string )</c> only: a string typed as an
+    /// object and the items of a collection are compared exactly.
+    /// </para>
+    /// </summary>
+    /// <param name="actual">This string.</param>
+    /// <param name="expected">The expected string.</param>
+    /// <param name="customMessage">Optional message.</param>
+    /// <returns>This string.</returns>
+    public static string? ShouldBe( [NotNullIfNotNull( nameof( expected ) )] this string? actual,
+                                    [NotNullIfNotNull( nameof( actual ) )] string? expected,
+                                    string? customMessage = null )
+    {
+        if( !IsClippedByShouldly( actual, expected ) )
+        {
+            Shouldly.ShouldBeStringTestExtensions.ShouldBe( actual, expected, customMessage, StringCompareShould.IgnoreLineEndings );
+        }
+        else if( actual == null || expected == null || ToLF( actual ) != ToLF( expected ) )
+        {
+            // The texts differ: this fails.
+            Shouldly.ShouldBeTestExtensions.ShouldBe( actual, expected, customMessage );
+        }
+        return actual;
+    }
+
+    /// <summary>
+    /// <c>ShouldBe</c> for strings with an explicit comparison: the newlines are compared like any other character
+    /// (<see cref="ShouldBe(string?, string?, string?)"/> ignores the newline style). Returns this string.
+    /// <para>
+    /// With <see cref="StringComparison.Ordinal"/> or <see cref="StringComparison.OrdinalIgnoreCase"/>, a failure
+    /// shows where the texts differ, with the code of each character: a difference of newline is otherwise invisible.
+    /// </para>
+    /// </summary>
+    /// <param name="actual">This string.</param>
+    /// <param name="expected">The expected string.</param>
+    /// <param name="comparisonType">Specifies the type of comparison.</param>
+    /// <param name="customMessage">Optional message.</param>
+    /// <returns>This string.</returns>
+    public static string? ShouldBe( [NotNullIfNotNull( nameof( expected ) )] this string? actual,
+                                    [NotNullIfNotNull( nameof( actual ) )] string? expected,
+                                    StringComparison comparisonType,
+                                    string? customMessage = null )
+    {
+        // Shouldly's string assertion knows these two comparisons only.
+        StringCompareShould? options = comparisonType switch
+        {
+            StringComparison.Ordinal => default( StringCompareShould ),
+            StringComparison.OrdinalIgnoreCase => StringCompareShould.IgnoreCase,
+            _ => null
+        };
+        if( options.HasValue && !IsClippedByShouldly( actual, expected ) )
+        {
+            Shouldly.ShouldBeStringTestExtensions.ShouldBe( actual, expected, customMessage, options.Value );
+        }
+        else
+        {
+            Shouldly.ShouldBeTestExtensions.ShouldBe( actual, expected, StringComparer.FromComparison( comparisonType ), customMessage );
+        }
+        return actual;
+    }
+
     /// <summary>Chaining <c>ShouldBe</c>: returns this value.</summary>
     public static T? ShouldBe<T>( [NotNullIfNotNull( nameof( expected ) )] this T? actual,
                                   [NotNullIfNotNull( nameof( actual ) )] T? expected,
@@ -649,6 +743,40 @@ public static class CKShouldlyGlobalOverrideExtensions
                                   string? customMessage = null )
     {
         Shouldly.ShouldBeTestExtensions.ShouldBe( actual, expected, comparer, customMessage );
+        return actual;
+    }
+
+    /// <summary>
+    /// <c>ShouldNotBe</c> for strings: like <see cref="ShouldBe(string?, string?, string?)"/>, the newline style is
+    /// ignored. Two texts that differ by their newline style only are the same text. Returns this string.
+    /// <para>
+    /// To compare the newlines too, specify the comparison: <c>actual.ShouldNotBe( expected, StringComparison.Ordinal )</c>.
+    /// </para>
+    /// </summary>
+    /// <param name="actual">This string.</param>
+    /// <param name="expected">The string that this one must not be.</param>
+    /// <param name="customMessage">Optional message.</param>
+    /// <returns>This string.</returns>
+    public static string? ShouldNotBe( this string? actual, string? expected, string? customMessage = null )
+    {
+        Shouldly.ShouldBeTestExtensions.ShouldNotBe( actual != null ? ToLF( actual ) : null,
+                                                     expected != null ? ToLF( expected ) : null,
+                                                     customMessage );
+        return actual;
+    }
+
+    /// <summary>
+    /// <c>ShouldNotBe</c> for strings with an explicit comparison: the newlines are compared like any other character
+    /// (<see cref="ShouldNotBe(string?, string?, string?)"/> ignores the newline style). Returns this string.
+    /// </summary>
+    /// <param name="actual">This string.</param>
+    /// <param name="expected">The string that this one must not be.</param>
+    /// <param name="comparisonType">Specifies the type of comparison.</param>
+    /// <param name="customMessage">Optional message.</param>
+    /// <returns>This string.</returns>
+    public static string? ShouldNotBe( this string? actual, string? expected, StringComparison comparisonType, string? customMessage = null )
+    {
+        Shouldly.ShouldBeTestExtensions.ShouldNotBe( actual, expected, StringComparer.FromComparison( comparisonType ), customMessage );
         return actual;
     }
 
@@ -1173,7 +1301,8 @@ namespace Shouldly
             catch( ShouldAssertException aEx )
             {
                 var prefix = Environment.NewLine + "  | ";
-                var offsetMessage = string.Join( prefix, aEx.Message.Split( Environment.NewLine ) );
+                // Shouldly's message has "\r\n" on every platform.
+                var offsetMessage = aEx.Message.ReplaceLineEndings( prefix );
                 throw new ShouldAssertException( $"ShouldAll failed for item n°{idx}.{prefix}{offsetMessage}" );
             }
             return actual;

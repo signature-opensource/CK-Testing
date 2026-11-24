@@ -179,6 +179,154 @@ public class ShouldlyTests
     }
 
     [Test]
+    public void ShouldBe_on_strings_ignores_the_newline_style()
+    {
+        "a\r\nb".ShouldBe( "a\nb" );
+        "a\nb".ShouldBe( "a\r\nb", "With a message." );
+        "a\rb".ShouldBe( "a\nb" );
+        "a\r\nb\nc".ShouldBe( "a\nb\r\nc" );
+        ((string?)null).ShouldBe( null );
+        // The subject is returned as it is, not normalized.
+        var s = "a\r\nb";
+        ReferenceEquals( s.ShouldBe( "a\nb" ), s ).ShouldBeTrue();
+    }
+
+    [Test]
+    public void ShouldBe_on_strings_still_fails_on_a_real_difference()
+    {
+        Util.Invokable( () => "a\r\nb".ShouldBe( "a\nc" ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a\n".ShouldBe( "a" ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a\n\nb".ShouldBe( "a\nb" ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a\u2028b".ShouldBe( "a\nb" ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => ((string?)null).ShouldBe( "a" ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a".ShouldBe( "b", "The message." ) )
+            .ShouldThrow<ShouldAssertException>().Message.ShouldContain( "The message." );
+    }
+
+    [Test]
+    public void ShouldNotBe_on_strings_ignores_the_newline_style()
+    {
+        "a\nb".ShouldNotBe( "a\nc" );
+        "a".ShouldNotBe( null );
+        ((string?)null).ShouldNotBe( "a" );
+        // The subject is returned as it is, not normalized.
+        var s = "a\r\nb";
+        ReferenceEquals( s.ShouldNotBe( "x" ), s ).ShouldBeTrue();
+        // Two texts that differ by their newline style only are the same text.
+        Util.Invokable( () => "a\r\nb".ShouldNotBe( "a\nb" ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a\rb".ShouldNotBe( "a\nb", "The message." ) )
+            .ShouldThrow<ShouldAssertException>().Message.ShouldContain( "The message." );
+        Util.Invokable( () => ((string?)null).ShouldNotBe( null ) ).ShouldThrow<ShouldAssertException>();
+        // A comparer makes it exact.
+        "a\r\nb".ShouldNotBe( "a\nb", StringComparer.Ordinal );
+        Util.Invokable( () => "a\nb".ShouldNotBe( "a\nb", StringComparer.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+    }
+
+    [Test]
+    public void ShouldNotBe_with_a_StringComparison_is_exact_on_newlines()
+    {
+        "a\r\nb".ShouldNotBe( "a\nb", StringComparison.Ordinal );
+        "a".ShouldNotBe( "b", StringComparison.OrdinalIgnoreCase, "With a message." );
+        ((string?)null).ShouldNotBe( "a", StringComparison.Ordinal );
+        var s = "a\r\nb";
+        ReferenceEquals( s.ShouldNotBe( "a\nb", StringComparison.Ordinal ), s ).ShouldBeTrue();
+        Util.Invokable( () => "a\nb".ShouldNotBe( "a\nb", StringComparison.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a".ShouldNotBe( "A", StringComparison.OrdinalIgnoreCase ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => ((string?)null).ShouldNotBe( null, StringComparison.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a".ShouldNotBe( "a", StringComparison.Ordinal, "The message." ) )
+            .ShouldThrow<ShouldAssertException>().Message.ShouldContain( "The message." );
+    }
+
+    [Test]
+    public void a_comparer_or_a_comparison_makes_the_assertion_exact()
+    {
+        "a\nb".ShouldBe( "a\nb", StringComparer.Ordinal );
+        Util.Invokable( () => "a\r\nb".ShouldBe( "a\nb", StringComparer.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+        "x\r\ny".ShouldContain( "x\r\ny", StringComparison.Ordinal );
+        Util.Invokable( () => "x\r\ny".ShouldContain( "x\ny", StringComparison.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+        "x\r\ny".ShouldNotContain( "x\ny", StringComparison.Ordinal );
+    }
+
+    [Test]
+    public void ShouldContain_and_ShouldNotContain_ignore_the_newline_style()
+    {
+        "0\r\na\r\nb\r\n1".ShouldContain( "a\nb" );
+        "0\na\nb\n1".ShouldContain( "a\r\nb", "With a message." );
+        "0\ra\rb".ShouldContain( "a\nb" );
+        // The subject is returned as it is, not normalized.
+        var s = "a\r\nb";
+        ReferenceEquals( s.ShouldContain( "a\nb" ), s ).ShouldBeTrue();
+        Util.Invokable( () => "0\na\nb".ShouldContain( "a\nc" ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "0\na\u2028b".ShouldContain( "a\nb" ) ).ShouldThrow<ShouldAssertException>();
+        "0\na\nb".ShouldNotContain( "a\nc" );
+        Util.Invokable( () => "0\r\na\r\nb".ShouldNotContain( "a\nb" ) ).ShouldThrow<ShouldAssertException>();
+        // A null subject is a failed assertion, not a NullReferenceException.
+        Util.Invokable( () => ((string)null!).ShouldContain( "a" ) ).ShouldThrow<ShouldAssertException>();
+        ((string)null!).ShouldNotContain( "a" ).ShouldBeNull();
+    }
+
+    [Test]
+    public void ShouldBe_with_a_StringComparison_is_exact_on_newlines()
+    {
+        "a\nb".ShouldBe( "a\nb", StringComparison.Ordinal );
+        "a\nB".ShouldBe( "A\nb", StringComparison.OrdinalIgnoreCase, "With a message." );
+        ((string?)null).ShouldBe( null, StringComparison.Ordinal );
+        var s = "a\r\nb";
+        ReferenceEquals( s.ShouldBe( "a\r\nb", StringComparison.Ordinal ), s ).ShouldBeTrue();
+        Util.Invokable( () => "a\r\nb".ShouldBe( "a\nb", StringComparison.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a".ShouldBe( "A", StringComparison.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => ((string?)null).ShouldBe( "a", StringComparison.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => "a".ShouldBe( "b", StringComparison.Ordinal, "The message." ) )
+            .ShouldThrow<ShouldAssertException>().Message.ShouldContain( "The message." );
+    }
+
+    [Test]
+    public void ShouldBe_with_a_StringComparison_shows_where_the_texts_differ()
+    {
+        // The two texts look the same: Shouldly's difference table gives the code of each character.
+        Util.Invokable( () => "a\r\n".ShouldBe( "a\n", StringComparison.Ordinal ) )
+            .ShouldThrow<ShouldAssertException>().Message.ShouldContain( "Actual Code" );
+        Util.Invokable( () => "ABC".ShouldBe( "abd", StringComparison.OrdinalIgnoreCase ) )
+            .ShouldThrow<ShouldAssertException>().Message.ShouldContain( "Ignoring case" );
+        // OrdinalIgnoreCase is not a culture comparison (for a culture, "\u00DF" is "ss").
+        Util.Invokable( () => "stra\u00DFe".ShouldBe( "STRASSE", StringComparison.OrdinalIgnoreCase ) ).ShouldThrow<ShouldAssertException>();
+    }
+
+    [Test]
+    public void ShouldBe_on_long_strings_still_shows_the_difference()
+    {
+        // Shouldly's string message shows the first 5000 characters of each text only.
+        var common = new string( 'x', 6000 );
+        Util.Invokable( () => (common + "\r\nACTUAL-END").ShouldBe( common + "\nEXPECTED-END" ) )
+            .ShouldThrow<ShouldAssertException>().Message.ShouldContain( "ACTUAL-END" ).ShouldContain( "EXPECTED-END" );
+        Util.Invokable( () => (common + "ACTUAL-END").ShouldBe( common + "EXPECTED-END", StringComparison.Ordinal ) )
+            .ShouldThrow<ShouldAssertException>().Message.ShouldContain( "ACTUAL-END" ).ShouldContain( "EXPECTED-END" );
+        (common + "\r\nEND").ShouldBe( common + "\nEND" );
+        (common + "\r\nEND").ShouldBe( common + "\r\nEND", StringComparison.Ordinal );
+        Util.Invokable( () => (common + "\r\nEND").ShouldBe( common + "\nEND", StringComparison.Ordinal ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => common.ShouldBe( null ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => ((string?)null).ShouldBe( common ) ).ShouldThrow<ShouldAssertException>();
+    }
+
+    [Test]
+    public void a_string_that_is_not_typed_as_a_string_is_compared_exactly()
+    {
+        // A limit: only a call that the compiler sees as string.ShouldBe( string ) ignores the newline style.
+        object o = "a\r\nb";
+        Util.Invokable( () => o.ShouldBe( "a\nb" ) ).ShouldThrow<ShouldAssertException>();
+        Util.Invokable( () => new[] { "a\r\nb" }.ShouldBe( new[] { "a\nb" } ) ).ShouldThrow<ShouldAssertException>();
+    }
+
+    [Test]
+    public void ShouldAll_message_uses_the_newline_of_the_platform()
+    {
+        int[] values = [0, 1, 2];
+        var message = Util.Invokable( () => values.ShouldAll( i => i.ShouldBePositive() ) )
+                          .ShouldThrow<ShouldAssertException>().Message;
+        message.ReplaceLineEndings().ShouldBe( message, StringComparer.Ordinal );
+    }
+
+    [Test]
     public void assertions_that_constrain_their_subject_can_be_chained()
     {
         "Hello World!".ShouldNotBeNullOrWhiteSpace()

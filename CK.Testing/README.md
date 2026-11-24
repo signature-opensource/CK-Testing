@@ -15,11 +15,15 @@ All the CK stack uses this `using static`. `TestHelper` is not a field that you 
 Assertions use [Shouldly](https://docs.shouldly.org/), extended by
 [`CKShouldlyExtensions`](CKShouldlyExtensions.cs). String comparisons are ordinal by default (Shouldly
 ignores the case to find a substring, a start or an end, and orders strings with the current culture), and the
-assertions that constrain their subject without fully defining it return it, so that they can be chained:
+assertions that constrain their subject without fully defining it return it, so that they can be chained.
+`ShouldBe`, `ShouldNotBe`, `ShouldContain` and `ShouldNotContain` on strings ignore the newline style (`\r\n`,
+`\r` and `\n` are the same newline); specify a `StringComparison` to compare the newlines too:
 
 ```csharp
 "Hello World!".ShouldStartWith( "Hello" ).ShouldEndWith( "!" );
 3712.ShouldBePositive().ShouldBeLessThan( 5000 );
+"Line 1\r\nLine 2".ShouldBe( "Line 1\nLine 2" );
+"Line 1\r\nLine 2".ShouldBe( "Line 1\r\nLine 2", StringComparison.Ordinal );
 ```
 
 ## A package extends the test helper with extension members.
