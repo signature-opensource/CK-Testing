@@ -3,9 +3,9 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CK.Core" Version="27.0.0-0.uc.0.ci.7" />
-    <PackageReference Include="CK.Monitoring" Version="28.0.0-0.uc.0.ci.13" />
-    <PackageReference Include="CK.ActivityMonitor.SimpleSender" Version="28.0.0-0.uc.0.ci.9" />
+    <PackageReference Include="CK.Core" Version="27.0.0-0.uc" />
+    <PackageReference Include="CK.Monitoring" Version="28.0.0-0.uc.1" />
+    <PackageReference Include="CK.ActivityMonitor.SimpleSender" Version="28.0.0-0.uc" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
     <PackageReference Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
