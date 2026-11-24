@@ -1,5 +1,6 @@
 using CK.Core;
 using CK.Testing;
+using Microsoft.Data.SqlClient;
 using Shouldly;
 using NUnit.Framework;
 using System;
@@ -60,15 +61,19 @@ public class DBLayerTests
     public void connection_string()
     {
         TestHelper.Monitor.Info( $"Current User: {Environment.UserDomainName}/{Environment.UserName}" );
-        var c = TestHelper.MasterConnectionString;
-        c.ShouldContain( "master" );
-        c.ShouldContain( "Integrated Security" );
-        var c2 = TestHelper.GetConnectionString( "Toto" );
-        c2.ShouldContain( "Toto" );
-        c.ShouldContain( "Integrated Security" );
-        c = TestHelper.MasterConnectionString;
-        c.ShouldContain( "master" );
-        c.ShouldContain( "Integrated Security" );
+        // The connection strings are compared through their properties: a failed assertion on the string itself
+        // displays it, with the password of a configured 'SqlServer/MasterConnectionString'.
+        var master = new SqlConnectionStringBuilder( TestHelper.MasterConnectionString );
+        master.InitialCatalog.ShouldBe( "master" );
+        var toto = new SqlConnectionStringBuilder( TestHelper.GetConnectionString( "Toto" ) );
+        toto.InitialCatalog.ShouldBe( "Toto" );
+        // Only the database changes: the server and the credentials are the ones of the master connection string
+        // (Integrated Security by default, a login when the setting says so).
+        toto.DataSource.ShouldBe( master.DataSource );
+        toto.IntegratedSecurity.ShouldBe( master.IntegratedSecurity );
+        toto.UserID.ShouldBe( master.UserID );
+        (toto.Password == master.Password).ShouldBeTrue();
+        new SqlConnectionStringBuilder( TestHelper.MasterConnectionString ).InitialCatalog.ShouldBe( "master" );
     }
 
     [Test]
