@@ -36,15 +36,18 @@ event (see the `CK.Testing.Stupid` sample in the `Tests` folder).
 
 Two behaviors that [`DBLayerTests`](../Tests/SqlHelper.Tests/DBLayerTests.cs) pins down. `DropDatabase` is
 idempotent: `dropping_database_multiple_times` calls it twice after a single `EnsureDatabase` and expects no
-exception. The default connection targets master:
+exception. The master connection string targets master, and `GetConnectionString` changes only the database:
 
 ```csharp
-var c = TestHelper.MasterConnectionString;
-c.ShouldContain( "master" );
-c.ShouldContain( "Integrated Security" );
-var c2 = TestHelper.GetConnectionString( "Toto" );
-c2.ShouldContain( "Toto" );
+var master = new SqlConnectionStringBuilder( TestHelper.MasterConnectionString );
+master.InitialCatalog.ShouldBe( "master" );
+var toto = new SqlConnectionStringBuilder( TestHelper.GetConnectionString( "Toto" ) );
+toto.InitialCatalog.ShouldBe( "Toto" );
+toto.DataSource.ShouldBe( master.DataSource );
 ```
+
+The test compares the properties, not the strings: a failed assertion on a connection string displays it,
+with its password when the setting gives a login.
 
 The test project is named `SqlHelper.Tests`, so it uses the database `CKTEST_SqlHelper` with no setting
 (in a main checkout; see [the worktree scope](#each-git-worktree-has-its-own-databases) for a linked worktree).
@@ -171,6 +174,12 @@ If a value is invalid (a `SqlServer/CompatibilityLevel` that is not an integer, 
 client refuses a local server with a self-signed certificate. The `MasterConnectionString` property returns
 the normalized output of a `SqlConnectionStringBuilder`, not the literal string above.
 
+The default needs a local SQL Server and a Windows account. On Linux, in WSL or in a container, set the
+`TestHelper__SqlServer__MasterConnectionString` environment variable to the server and a login, for example
+`Server=<host>;Database=master;User ID=<login>;Password=<password>;TrustServerCertificate=True`.
+`MasterConnectionString` and `GetConnectionString` then return the password too: do not write them in a log
+or in an assertion message.
+
 `CompatibilityLevel` **is** `0` by default, not the server level. `0` means "use the current level of the
 server" when `EnsureDatabase` creates a database. So the value that you read from the options is `0`, and
 the database gets the level of the server.
@@ -216,7 +225,9 @@ change the default database, and it does not fire `OnDatabaseCreatedOrDropped`.
 [`QuotedNameTests`](../Tests/SqlHelper.Tests/QuotedNameTests.cs) creates, uses and drops a database with special
 characters in its name. Its backup and restore test is explicit: the SQL Server service account must have write
 access to the `DBBackup` folder, and a checkout under a user profile (for example in `%TEMP%`) usually does not
-give it.
+give it. The SQL Server service reads and writes the backup files on its own machine, with the path that the
+test gives: when the server is not on the machine of the tests (WSL to Windows, a container), the `DBBackup`
+folder of the test project cannot be used.
 
 ## Requires.
 
